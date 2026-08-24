@@ -67,6 +67,11 @@ view.jump(reopened.buf, 1)
 assert_equal({ 4, 0 }, vim.api.nvim_win_get_cursor(reopened.win), "next message should jump to its content")
 view.jump(reopened.buf, -1)
 assert_equal({ 2, 0 }, vim.api.nvim_win_get_cursor(reopened.win), "previous message should jump back to its content")
+vim.api.nvim_win_set_cursor(reopened.win, { 4, 0 })
+view.jump_edge(reopened.buf, "last")
+assert_equal({ 6, 0 }, vim.api.nvim_win_get_cursor(reopened.win), "last message should jump to its content")
+view.jump_edge(reopened.buf, "first")
+assert_equal({ 2, 0 }, vim.api.nvim_win_get_cursor(reopened.win), "first message should jump to its content")
 
 view.render(reopened.buf, {
 	{ role = "tool", kind = "command", command = "pwd", output = "/tmp\n", status = "completed" },

@@ -34,6 +34,8 @@ Sidekick Reader 是 Sidekick Codex 会话的实时阅读模式。
 - 在 Sidekick Reader 页面按 `i` 或 `<C-]>`：回到 Sidekick 输入区
 - `]m`：跳到下一条消息
 - `[m`：跳到上一条消息
+- `]g`：跳到最后一条消息
+- `[g`：跳到第一条消息
 - `gf`：在左侧编辑区打开光标处的文件引用并跳到对应行
 - `G`：回到最新消息并继续跟随
 - `q`：隐藏整个 Sidekick 工作区

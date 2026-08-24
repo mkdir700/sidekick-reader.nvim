@@ -350,4 +350,13 @@ function M.jump(buf, direction)
 	vim.api.nvim_win_set_cursor(0, { target, 0 })
 end
 
+function M.jump_edge(buf, edge)
+	local starts = vim.b[buf].sidekick_reader_message_lines or {}
+	if #starts == 0 then
+		return
+	end
+	local target = edge == "first" and starts[1] or starts[#starts]
+	vim.api.nvim_win_set_cursor(0, { target, 0 })
+end
+
 return M
