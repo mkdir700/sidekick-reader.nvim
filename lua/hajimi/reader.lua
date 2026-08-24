@@ -10,18 +10,88 @@ function Reader.new(opts)
 	opts = opts or {}
 	return setmetatable({
 		observer_factory = opts.observer_factory or Observer.new,
+		layout = opts.layout or "replace",
 		registry = opts.registry or Registry,
 		registry_dir = opts.registry_dir,
 		states = {},
+		viewer_ratio = opts.viewer_ratio or 0.8,
 		width = opts.width or 60,
 	}, Reader)
+end
+
+local function is_visible(state)
+	return state
+		and (
+			(state.split and state.split.winid and vim.api.nvim_win_is_valid(state.split.winid))
+			or (state.win and vim.api.nvim_win_is_valid(state.win) and vim.api.nvim_win_get_buf(state.win) == state.buf)
+		)
+end
+
+function Reader:show(pane_id, win, terminal)
+	local current = vim.api.nvim_get_current_win()
+	local state = self.states[pane_id]
+	if state then
+		state.terminal = terminal or state.terminal
+		state.terminal_win = win or state.terminal_win
+	end
+	if not is_visible(state) then
+		local ok, err = self:toggle(pane_id, win)
+		if not ok then
+			return ok, err
+		end
+		state = self.states[pane_id]
+		state.terminal = terminal or state.terminal
+		state.terminal_win = win or state.terminal_win
+	end
+	if vim.api.nvim_win_is_valid(current) then
+		vim.api.nvim_set_current_win(current)
+	end
+	return true
+end
+
+function Reader:focus(pane_id, win, terminal)
+	local ok, err = self:show(pane_id, win, terminal)
+	if not ok then
+		return ok, err
+	end
+	local state = self.states[pane_id]
+	if state and is_visible(state) then
+		vim.api.nvim_set_current_win(state.win)
+	end
+	return true
+end
+
+function Reader:hide(pane_id)
+	local state = self.states[pane_id]
+	if is_visible(state) then
+		self:toggle(pane_id, state.win)
+	end
+end
+
+function Reader:close(pane_id)
+	local state = self.states[pane_id]
+	if not state then
+		return
+	end
+	self:hide(pane_id)
+	if state.observer and state.observer.stop then
+		state.observer:stop()
+	end
+	if state.split then
+		state.split:unmount()
+	elseif vim.api.nvim_buf_is_valid(state.buf) then
+		vim.api.nvim_buf_delete(state.buf, { force = true })
+	end
+	self.states[pane_id] = nil
 end
 
 function Reader:toggle(pane_id, win)
 	win = win or vim.api.nvim_get_current_win()
 	local state = self.states[pane_id]
-	if state and vim.api.nvim_win_get_buf(win) == state.buf then
-		local cursor = vim.api.nvim_win_get_cursor(win)[1]
+	local split_visible = state and state.split and state.split.winid and vim.api.nvim_win_is_valid(state.split.winid)
+	if state and (split_visible or vim.api.nvim_win_get_buf(win) == state.buf) then
+		local reader_win = split_visible and state.split.winid or win
+		local cursor = vim.api.nvim_win_get_cursor(reader_win)[1]
 		if cursor >= vim.api.nvim_buf_line_count(state.buf) then
 			state.follow = true
 			state.saved_view = nil
@@ -29,10 +99,31 @@ function Reader:toggle(pane_id, win)
 			state.follow = false
 		end
 		if not state.follow then
-			state.saved_view = vim.api.nvim_win_call(win, vim.fn.winsaveview)
+			state.saved_view = vim.api.nvim_win_call(reader_win, vim.fn.winsaveview)
 		end
-		vim.api.nvim_win_set_buf(win, state.origin_buf)
+		if state.split then
+			state.split:hide()
+			if vim.api.nvim_win_is_valid(state.terminal_win) then
+				vim.api.nvim_set_current_win(state.terminal_win)
+			end
+		else
+			vim.api.nvim_win_set_buf(win, state.origin_buf)
+		end
 		return false
+	end
+	if state and state.split then
+		state.split:update_layout({
+			relative = { type = "win", winid = state.terminal_win },
+			position = "top",
+			size = (self.viewer_ratio * 100) .. "%",
+		})
+		state.split:show()
+		state.win = state.split.winid
+		View.attach(state.buf, state.win)
+		if state.follow then
+			View.follow(state.buf, state.win)
+		end
+		return true
 	end
 
 	if not state then
@@ -42,7 +133,23 @@ function Reader:toggle(pane_id, win)
 		end
 
 		local origin_buf = vim.api.nvim_win_get_buf(win)
-		local buf = vim.api.nvim_create_buf(false, true)
+		local split
+		local buf
+		local viewer_win = win
+		if self.layout == "stacked" then
+			local Split = require("nui.split")
+			split = Split({
+				relative = { type = "win", winid = win },
+				position = "top",
+				size = (self.viewer_ratio * 100) .. "%",
+				enter = true,
+			})
+			split:mount()
+			buf = split.bufnr
+			viewer_win = split.winid
+		else
+			buf = vim.api.nvim_create_buf(false, true)
+		end
 		vim.bo[buf].buftype = "nofile"
 		vim.bo[buf].bufhidden = "hide"
 		vim.bo[buf].swapfile = false
@@ -50,7 +157,15 @@ function Reader:toggle(pane_id, win)
 		vim.b[buf].hajimi_pane_id = pane_id
 		vim.api.nvim_buf_set_name(buf, "hajimi://" .. pane_id)
 
-		state = { buf = buf, origin_buf = origin_buf, pane_id = pane_id, win = win, follow = true }
+		state = {
+			buf = buf,
+			origin_buf = origin_buf,
+			pane_id = pane_id,
+			win = viewer_win,
+			terminal_win = win,
+			split = split,
+			follow = true,
+		}
 		state.session = Session.new({
 			on_change = function(messages, change)
 				if vim.api.nvim_buf_is_valid(buf) then
@@ -96,27 +211,38 @@ function Reader:toggle(pane_id, win)
 		self.states[pane_id] = state
 
 		vim.keymap.set("n", "q", function()
-			self:toggle(pane_id, win)
-		end, { buffer = buf, desc = "Return to Sidekick" })
+			if state.terminal and state.terminal.hide then
+				state.terminal:hide()
+			else
+				self:hide(pane_id)
+			end
+		end, { buffer = buf, desc = "Hide Sidekick workspace" })
 		vim.keymap.set("n", "<C-]>", function()
-			self:toggle(pane_id, win)
-		end, { buffer = buf, desc = "Return to Sidekick" })
-		vim.keymap.set("n", "<C-j>", function()
+			if state.terminal and state.terminal.focus then
+				state.terminal:focus()
+			end
+		end, { buffer = buf, desc = "Focus Sidekick input" })
+		vim.keymap.set("n", "i", function()
+			if state.terminal and state.terminal.focus then
+				state.terminal:focus()
+			end
+		end, { buffer = buf, desc = "Focus Sidekick input" })
+		vim.keymap.set("n", "]m", function()
 			View.jump(buf, 1)
 		end, { buffer = buf, desc = "Next Hajimi message" })
-		vim.keymap.set("n", "<C-k>", function()
+		vim.keymap.set("n", "[m", function()
 			View.jump(buf, -1)
 		end, { buffer = buf, desc = "Previous Hajimi message" })
-		vim.keymap.set("n", "<C-f>", function()
+		vim.keymap.set("n", "G", function()
 			state.follow = true
 			state.unread = false
 			state.saved_view = nil
 			View.set_status(
 				buf,
-				win,
+				state.win,
 				vim.tbl_extend("force", {}, state.status or { type = "idle" }, { unread = false })
 			)
-			View.follow(buf, win)
+			View.follow(buf, state.win)
 		end, { buffer = buf, desc = "Follow Latest Hajimi Message" })
 		vim.api.nvim_create_autocmd("CursorMoved", {
 			buffer = buf,
@@ -137,15 +263,28 @@ function Reader:toggle(pane_id, win)
 				end
 			end,
 		})
+		if split then
+			vim.api.nvim_create_autocmd("VimResized", {
+				callback = function()
+					if vim.api.nvim_win_is_valid(state.terminal_win) then
+						split:update_layout({
+							relative = { type = "win", winid = state.terminal_win },
+							position = "top",
+							size = (self.viewer_ratio * 100) .. "%",
+						})
+					end
+				end,
+			})
+		end
 	end
 
-	state.win = win
-	vim.api.nvim_win_set_buf(win, state.buf)
-	View.attach(state.buf, win)
+	state.win = state.split and state.split.winid or win
+	vim.api.nvim_win_set_buf(state.win, state.buf)
+	View.attach(state.buf, state.win)
 	if state.follow then
-		View.follow(state.buf, win)
+		View.follow(state.buf, state.win)
 	elseif state.saved_view then
-		vim.api.nvim_win_call(win, function()
+		vim.api.nvim_win_call(state.win, function()
 			vim.fn.winrestview(state.saved_view)
 		end)
 	end

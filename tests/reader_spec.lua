@@ -71,7 +71,7 @@ assert(
 
 vim.api.nvim_win_set_cursor(0, { 2, 0 })
 vim.cmd("doautocmd CursorMoved")
-local follow_mapping = vim.fn.maparg("<C-f>", "n", false, true)
+local follow_mapping = vim.fn.maparg("G", "n", false, true)
 assert(
 	follow_mapping.buffer == 1 and type(follow_mapping.callback) == "function",
 	"the reader should provide follow mode"
@@ -79,8 +79,13 @@ assert(
 follow_mapping.callback()
 assert(
 	vim.api.nvim_win_get_cursor(0)[1] == vim.api.nvim_buf_line_count(rendered),
-	"Ctrl-f should return to the newest content"
+	"G should return to the newest content"
 )
 assert(not vim.wo[0].winbar:find("New output", 1, true), "following again should clear the new output notice")
+
+assert(vim.fn.maparg("<C-j>", "n", false, true).buffer ~= 1, "the reader must not override the window-navigation key")
+assert(vim.fn.maparg("<C-k>", "n", false, true).buffer ~= 1, "the reader must not override the window-navigation key")
+assert(vim.fn.maparg("]m", "n") ~= "", "the reader should jump to the next message with ]m")
+assert(vim.fn.maparg("[m", "n") ~= "", "the reader should jump to the previous message with [m")
 
 print("reader_spec: ok")
