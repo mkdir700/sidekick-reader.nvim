@@ -10,6 +10,7 @@ Sidekick Reader 是 Sidekick Codex 会话的实时阅读模式。
 - 已安装并登录的 `codex` 命令
 - Node.js 22 或更高版本
 - Sidekick 使用 tmux 保存 Codex 会话
+- Diffview 用于查看单轮 AI 文件修改
 
 ## 本地安装
 
@@ -37,6 +38,7 @@ Sidekick Reader 是 Sidekick Codex 会话的实时阅读模式。
 - `]g`：跳到最后一条消息
 - `[g`：跳到第一条消息
 - `gf`：在左侧编辑区打开光标处的文件引用并跳到对应行
+- `gd`：在 Diffview 中查看光标所在一轮的 AI 文件修改
 - `G`：回到最新消息并继续跟随
 - `q`：隐藏整个 Sidekick 工作区
 
@@ -48,6 +50,8 @@ Sidekick Reader 提供两种显示布局：
 - `replace`：Viewer 临时替换 Sidekick 所在窗口。
 
 命令执行会默认收起，可以使用 Neovim 的折叠操作展开。Codex 修改文件时，Reader 会按文件展示实时 diff，文件名仍可通过 `gf` 在左侧编辑区打开。
+
+`gd` 使用 Codex 为当前轮次提供的累计 diff，不读取 Git diff，也不会把工作区中原有的未提交修改混入 Review。左右内容使用内存 Buffer，关闭 Diffview 后不会留下临时文件。
 
 Sidekick Reader 不解析 Sidekick 终端画面。Sidekick 启动 Codex 时会同时启动一个隔离的 App Server；Codex 终端和 Sidekick Reader 观察器连接同一个后台，因此渲染页可以读取原始消息并实时刷新，不受终端折行影响。
 

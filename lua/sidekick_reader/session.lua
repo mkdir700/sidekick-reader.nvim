@@ -33,6 +33,7 @@ function Session.new(opts)
 		by_id = {},
 		on_change = opts.on_change or function() end,
 		on_status = opts.on_status or function() end,
+		turn_diffs = {},
 		values = {},
 	}, Session)
 end
@@ -44,17 +45,29 @@ end
 function Session:load(thread)
 	self.loading = true
 	self.by_id = {}
+	self.thread_cwd = thread.cwd
+	self.turn_diffs = {}
 	self.values = {}
 	for _, turn in ipairs(thread.turns or {}) do
 		for _, item in ipairs(turn.items or {}) do
-			self:handle("item/started", { item = item })
+			self:handle("item/started", { item = item, turnId = turn.id })
 			if item.status or item.text then
-				self:handle("item/completed", { item = item })
+				self:handle("item/completed", { item = item, turnId = turn.id })
 			end
 		end
 	end
 	self.loading = false
 	self.on_change(self.values, { type = "reset" })
+end
+
+function Session:cwd()
+	return self.thread_cwd
+end
+
+function Session:turn_diff_for_message(index)
+	local message = self.values[index]
+	local turn_id = message and message.turn_id
+	return turn_id and self.turn_diffs[turn_id] or nil, turn_id
 end
 
 function Session:_insert(id, message)
@@ -72,17 +85,31 @@ function Session:handle(method, params)
 		self.on_status(params.status or {})
 		return
 	end
+	if method == "turn/diff/updated" then
+		if type(params.turnId) == "string" then
+			self.turn_diffs[params.turnId] = text(params.diff)
+		end
+		return
+	end
 	local item = params.item
 	local change
+	local turn_id = params.turnId
 
 	if method == "item/started" and item then
 		if item.type == "userMessage" then
-			local _, index, added =
-				self:_insert(item.id, { id = item.id, role = "user", text = message_text(item.content) })
+			local _, index, added = self:_insert(
+				item.id,
+				{ id = item.id, role = "user", text = message_text(item.content), turn_id = turn_id }
+			)
 			change = { type = added and "append" or "update", index = index }
 		elseif item.type == "agentMessage" then
-			local _, index, added =
-				self:_insert(item.id, { id = item.id, role = "assistant", text = text(item.text), phase = item.phase })
+			local _, index, added = self:_insert(item.id, {
+				id = item.id,
+				role = "assistant",
+				text = text(item.text),
+				phase = item.phase,
+				turn_id = turn_id,
+			})
 			change = { type = added and "append" or "update", index = index }
 		elseif item.type == "commandExecution" then
 			local _, index, added = self:_insert(item.id, {
@@ -93,6 +120,7 @@ function Session:handle(method, params)
 				cwd = item.cwd,
 				output = text(item.aggregatedOutput),
 				status = item.status,
+				turn_id = turn_id,
 			})
 			change = { type = added and "append" or "update", index = index }
 		elseif item.type == "fileChange" then
@@ -102,6 +130,7 @@ function Session:handle(method, params)
 				kind = "file_change",
 				changes = file_changes(item.changes),
 				status = item.status,
+				turn_id = turn_id,
 			})
 			change = { type = added and "append" or "update", index = index }
 		end

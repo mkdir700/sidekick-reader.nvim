@@ -95,4 +95,34 @@ nullable:handle("item/started", {
 assert(type(nullable:messages()[1].output) == "string" and nullable:messages()[1].output == "")
 assert(type(nullable:messages()[2].text) == "string" and nullable:messages()[2].text == "")
 
+local turns = Session.new()
+turns:handle("item/started", {
+	turnId = "turn-1",
+	item = { type = "userMessage", id = "turn-1-user", content = { { type = "text", text = "First turn" } } },
+})
+turns:handle("turn/diff/updated", { turnId = "turn-1", diff = "first version" })
+turns:handle("turn/diff/updated", { turnId = "turn-1", diff = "final first-turn diff" })
+turns:handle("item/started", {
+	turnId = "turn-2",
+	item = { type = "agentMessage", id = "turn-2-agent", text = "Second turn", phase = "final_answer" },
+})
+turns:handle("turn/diff/updated", { turnId = "turn-2", diff = "second-turn diff" })
+local first_diff, first_turn = turns:turn_diff_for_message(1)
+local second_diff, second_turn = turns:turn_diff_for_message(2)
+assert(
+	first_diff == "final first-turn diff" and first_turn == "turn-1",
+	"a turn should keep its latest cumulative diff"
+)
+assert(second_diff == "second-turn diff" and second_turn == "turn-2", "turn diffs must remain isolated")
+
+local replay_turns = Session.new()
+replay_turns:load({
+	cwd = "/tmp/project",
+	turns = {
+		{ id = "replayed-turn", items = { { type = "agentMessage", id = "replayed", text = "Replay" } } },
+	},
+})
+assert(replay_turns:messages()[1].turn_id == "replayed-turn", "replayed messages should keep their turn")
+assert(replay_turns:cwd() == "/tmp/project", "the thread working directory should be retained")
+
 print("session_spec: ok")

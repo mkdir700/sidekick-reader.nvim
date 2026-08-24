@@ -1,6 +1,7 @@
 local Observer = require("sidekick_reader.observer")
 local FileReference = require("sidekick_reader.file_reference")
 local Registry = require("sidekick_reader.registry")
+local Review = require("sidekick_reader.review")
 local Session = require("sidekick_reader.session")
 local View = require("sidekick_reader.view")
 
@@ -14,6 +15,7 @@ function Reader.new(opts)
 		layout = opts.layout or "replace",
 		registry = opts.registry or Registry,
 		registry_dir = opts.registry_dir,
+		review = opts.review or Review,
 		states = {},
 		viewer_ratio = opts.viewer_ratio or 0.8,
 		width = opts.width or 60,
@@ -246,6 +248,19 @@ function Reader:toggle(pane_id, win)
 				vim.notify("Sidekick Reader: " .. err, vim.log.levels.WARN)
 			end
 		end, { buffer = buf, desc = "Open file reference on the left" })
+		vim.keymap.set("n", "gd", function()
+			local index = View.message_index(buf, vim.api.nvim_win_get_cursor(state.win)[1])
+			local diff, turn_id = state.session:turn_diff_for_message(index)
+			if not diff or diff == "" then
+				return vim.notify("Sidekick Reader: no recorded file changes for this turn", vim.log.levels.INFO)
+			end
+			local _, err = self.review.open(diff, state.session:cwd() or vim.fn.getcwd(), {
+				title = "AI turn " .. turn_id,
+			})
+			if err then
+				vim.notify("Sidekick Reader: " .. err, vim.log.levels.WARN)
+			end
+		end, { buffer = buf, desc = "Review this turn's file changes" })
 		vim.keymap.set("n", "G", function()
 			state.follow = true
 			state.unread = false

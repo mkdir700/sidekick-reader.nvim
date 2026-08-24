@@ -309,6 +309,19 @@ function M.latest_start(buf)
 	return starts[#starts] or 1
 end
 
+function M.message_index(buf, line)
+	local layout = layouts[buf]
+	if not layout or #layout.ranges == 0 then
+		return
+	end
+	for index, item in ipairs(layout.ranges) do
+		local next_item = layout.ranges[index + 1]
+		if line <= item.finish or not next_item or line < next_item.line then
+			return item.index
+		end
+	end
+end
+
 function M.follow(buf, win)
 	if not (vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_win_is_valid(win)) then
 		return

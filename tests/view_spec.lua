@@ -62,6 +62,9 @@ view.render(reopened.buf, {
 	{ role = "assistant", text = "second" },
 	{ role = "user", text = "third" },
 })
+assert_equal(1, view.message_index(reopened.buf, 2), "message content should resolve to its message")
+assert_equal(1, view.message_index(reopened.buf, 3), "the separator should resolve to the message above it")
+assert_equal(2, view.message_index(reopened.buf, 4), "the next message should resolve independently")
 vim.api.nvim_win_set_cursor(reopened.win, { 2, 0 })
 view.jump(reopened.buf, 1)
 assert_equal({ 4, 0 }, vim.api.nvim_win_get_cursor(reopened.win), "next message should jump to its content")
