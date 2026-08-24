@@ -10,8 +10,22 @@ local function text(value)
 end
 
 local function content(message)
+	if message.kind == "file_change" then
+		local lines = {}
+		for index, change in ipairs(message.changes or {}) do
+			lines[#lines + 1] = text(change.path)
+			local diff = text(change.diff)
+			if diff ~= "" then
+				vim.list_extend(lines, vim.split(diff, "\n", { plain = true }))
+			end
+			if index < #(message.changes or {}) then
+				lines[#lines + 1] = ""
+			end
+		end
+		return #lines > 0 and lines or { "Waiting for file changes" }
+	end
 	if message.role == "tool" then
-		local lines = { text(message.command) }
+		local lines = vim.split(text(message.command), "\n", { plain = true })
 		local output = text(message.output)
 		if output ~= "" then
 			vim.list_extend(lines, vim.split(output, "\n", { plain = true, trimempty = true }))
@@ -19,6 +33,16 @@ local function content(message)
 		return lines
 	end
 	return vim.split(text(message.text), "\n", { plain = true })
+end
+
+local function tool_label(message)
+	if message.kind == "file_change" then
+		local count = #(message.changes or {})
+		local state = message.status == "completed" and "done" or message.status == "failed" and "failed" or "running"
+		return ("Files  %s  (%d)"):format(state, count)
+	end
+	local done = message.status == "completed"
+	return done and ((message.exit_code or 0) == 0 and "Command  done" or "Command  failed") or "Command  running"
 end
 
 local function build(messages)
@@ -29,18 +53,20 @@ local function build(messages)
 		vim.list_extend(lines, content(message))
 		local label = labels[message.role] or message.role
 		if message.role == "tool" then
-			local done = message.status == "completed"
-			label = done and ((message.exit_code or 0) == 0 and "Command  done" or "Command  failed")
-				or "Command  running"
-			folds[#folds + 1] = { start = start, finish = #lines }
+			label = tool_label(message)
 		end
-		decorations[#decorations + 1] = {
+		local item = {
 			line = start,
 			finish = #lines,
 			role = message.role,
+			kind = message.kind,
 			label = label,
 			index = index,
 		}
+		decorations[#decorations + 1] = item
+		if message.kind == "command" then
+			folds[#folds + 1] = item
+		end
 		if index < #messages then
 			lines[#lines + 1] = ""
 		end
@@ -73,11 +99,39 @@ local function decoration(buf, item, width)
 			virt_lines_above = true,
 		}),
 	}
-	if item.role == "tool" then
+	if item.kind == "command" then
 		item.marks[#item.marks + 1] = vim.api.nvim_buf_set_extmark(buf, ns, item.line - 1, 0, {
 			virt_text = { { "$ ", "SidekickReaderTool" } },
 			virt_text_pos = "inline",
 		})
+	elseif item.kind == "file_change" then
+		for line = item.line, item.finish do
+			local value = vim.api.nvim_buf_get_lines(buf, line - 1, line, false)[1] or ""
+			local line_group = value:match("^%+[^+]") and "DiffAdd"
+				or value:match("^%-[^-]") and "DiffDelete"
+				or value:match("^@@") and "DiffChange"
+			if line_group then
+				item.marks[#item.marks + 1] = vim.api.nvim_buf_set_extmark(buf, ns, line - 1, 0, {
+					line_hl_group = line_group,
+				})
+			end
+		end
+	end
+end
+
+local function apply_folds(buf)
+	local layout = layouts[buf]
+	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+		vim.wo[win].foldmethod = "manual"
+		vim.api.nvim_win_call(win, function()
+			vim.cmd("silent! normal! zE")
+			for _, range in ipairs(layout and layout.folds or {}) do
+				if range.finish > range.line then
+					vim.cmd(("silent! %d,%dfold"):format(range.line, range.finish))
+					vim.cmd(("silent! %dfoldclose"):format(range.line))
+				end
+			end
+		end)
 	end
 end
 
@@ -136,23 +190,14 @@ function M.render(buf, messages)
 	for _, item in ipairs(decorations) do
 		decoration(buf, item, width)
 	end
-	layouts[buf] = { count = #messages, ranges = decorations }
+	layouts[buf] = { count = #messages, ranges = decorations, folds = folds }
 	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
 		vim.wo[win].wrap = true
 		vim.wo[win].linebreak = true
 		vim.wo[win].breakindent = true
 		vim.wo[win].showbreak = "  "
-		vim.wo[win].foldmethod = "manual"
-		vim.api.nvim_win_call(win, function()
-			vim.cmd("silent! normal! zE")
-			for _, range in ipairs(folds) do
-				if range.finish > range.start then
-					vim.cmd(("silent! %d,%dfold"):format(range.start, range.finish))
-				end
-			end
-			vim.cmd("silent! normal! zR")
-		end)
 	end
+	apply_folds(buf)
 end
 
 function M.update(buf, messages, change)
@@ -179,17 +224,20 @@ function M.update(buf, messages, change)
 			line = old_count + 2,
 			finish = old_count + 1 + #lines,
 			role = message.role,
+			kind = message.kind,
 			label = labels[message.role] or message.role,
 			index = change.index,
 		}
 		if message.role == "tool" then
-			local done = message.status == "completed"
-			item.label = done and ((message.exit_code or 0) == 0 and "Command  done" or "Command  failed")
-				or "Command  running"
+			item.label = tool_label(message)
 		end
 		decoration(buf, item, width)
 		layout.count = change.index
 		layout.ranges[change.index] = item
+		if message.kind == "command" then
+			layout.folds[#layout.folds + 1] = item
+			apply_folds(buf)
+		end
 		local starts = vim.b[buf].sidekick_reader_message_lines or {}
 		starts[#starts + 1] = item.line
 		vim.b[buf].sidekick_reader_message_lines = starts
@@ -206,11 +254,12 @@ function M.update(buf, messages, change)
 		end
 		item.finish = item.line - 1 + #lines
 		if message.role == "tool" then
-			local done = message.status == "completed"
-			item.label = done and ((message.exit_code or 0) == 0 and "Command  done" or "Command  failed")
-				or "Command  running"
+			item.label = tool_label(message)
 		end
 		decoration(buf, item, width)
+		if message.kind == "command" then
+			apply_folds(buf)
+		end
 		return
 	end
 

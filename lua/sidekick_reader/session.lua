@@ -15,6 +15,18 @@ local function message_text(content)
 	return table.concat(parts, "\n")
 end
 
+local function file_changes(changes)
+	local result = {}
+	for _, change in ipairs(type(changes) == "table" and changes or {}) do
+		result[#result + 1] = {
+			path = text(change.path),
+			kind = text(change.kind),
+			diff = text(change.diff),
+		}
+	end
+	return result
+end
+
 function Session.new(opts)
 	opts = opts or {}
 	return setmetatable({
@@ -83,6 +95,15 @@ function Session:handle(method, params)
 				status = item.status,
 			})
 			change = { type = added and "append" or "update", index = index }
+		elseif item.type == "fileChange" then
+			local _, index, added = self:_insert(item.id, {
+				id = item.id,
+				role = "tool",
+				kind = "file_change",
+				changes = file_changes(item.changes),
+				status = item.status,
+			})
+			change = { type = added and "append" or "update", index = index }
 		end
 	elseif method == "item/agentMessage/delta" then
 		local index = self.by_id[params.itemId]
@@ -94,6 +115,12 @@ function Session:handle(method, params)
 		local index = self.by_id[params.itemId]
 		if index then
 			self.values[index].output = self.values[index].output .. text(params.delta)
+			change = { type = "update", index = index }
+		end
+	elseif method == "item/fileChange/patchUpdated" then
+		local index = self.by_id[params.itemId]
+		if index then
+			self.values[index].changes = file_changes(params.changes)
 			change = { type = "update", index = index }
 		end
 	elseif method == "item/completed" and item then
@@ -109,6 +136,11 @@ function Session:handle(method, params)
 			change = { type = "update", index = index }
 		elseif index and item.type == "agentMessage" and type(item.text) == "string" then
 			self.values[index].text = item.text
+			change = { type = "update", index = index }
+		elseif index and item.type == "fileChange" then
+			local message = self.values[index]
+			message.status = item.status
+			message.changes = file_changes(item.changes)
 			change = { type = "update", index = index }
 		end
 	end

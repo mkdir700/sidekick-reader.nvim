@@ -45,6 +45,8 @@ Sidekick Reader 提供两种显示布局：
 - `stacked`：上方 Viewer、下方 Sidekick 终端；`viewer_ratio = 0.8` 表示 80/20。
 - `replace`：Viewer 临时替换 Sidekick 所在窗口。
 
+命令执行会默认收起，可以使用 Neovim 的折叠操作展开。Codex 修改文件时，Reader 会按文件展示实时 diff，文件名仍可通过 `gf` 在左侧编辑区打开。
+
 Sidekick Reader 不解析 Sidekick 终端画面。Sidekick 启动 Codex 时会同时启动一个隔离的 App Server；Codex 终端和 Sidekick Reader 观察器连接同一个后台，因此渲染页可以读取原始消息并实时刷新，不受终端折行影响。
 
 Codex 连接依据 [OpenAI 官方 App Server 说明](https://learn.chatgpt.com/docs/app-server)。

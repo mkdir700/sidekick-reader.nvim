@@ -73,6 +73,58 @@ view.render(reopened.buf, {
 })
 local tool_text = table.concat(vim.api.nvim_buf_get_lines(reopened.buf, 0, -1, false), "\n")
 assert(tool_text:find("pwd", 1, true) and tool_text:find("/tmp", 1, true), "command activity should be readable")
+assert(vim.fn.foldclosed(2) == 2, "completed command activity should be folded by default")
+
+local multiline_command_ok = pcall(view.render, reopened.buf, {
+	{
+		role = "tool",
+		kind = "command",
+		command = "cat <<'EOF'\nhello\nEOF",
+		output = "hello\n",
+		status = "completed",
+	},
+})
+assert(multiline_command_ok, "replayed multiline commands must be split into valid buffer lines")
+assert(vim.fn.foldclosed(2) == 2, "a replayed multiline command should remain folded")
+
+view.render(reopened.buf, {
+	{
+		role = "tool",
+		kind = "file_change",
+		status = "completed",
+		changes = {
+			{ path = "/tmp/example.rs", kind = "update", diff = "@@ -1 +1 @@\n-before\n+after" },
+		},
+	},
+})
+local diff_text = table.concat(vim.api.nvim_buf_get_lines(reopened.buf, 0, -1, false), "\n")
+assert(diff_text:find("/tmp/example.rs", 1, true), "file changes should show the edited path")
+assert(diff_text:find("-before", 1, true) and diff_text:find("+after", 1, true), "file changes should show the diff")
+assert(vim.fn.foldclosed(2) == -1, "file diffs should remain expanded")
+
+local live_messages = {
+	{ role = "assistant", text = "working" },
+	{ role = "tool", kind = "command", command = "cargo test", output = "running\n", status = "inProgress" },
+}
+view.render(reopened.buf, { live_messages[1] })
+view.update(reopened.buf, live_messages, { type = "append", index = 2 })
+assert(vim.fn.foldclosed(4) == 4, "a live command should be folded when it is appended")
+live_messages[2].output = "running\ndone\n"
+live_messages[2].status = "completed"
+view.update(reopened.buf, live_messages, { type = "update", index = 2 })
+assert(vim.fn.foldclosed(4) == 4, "a live command should remain folded as output arrives")
+
+local live_diff = {
+	role = "tool",
+	kind = "file_change",
+	status = "inProgress",
+	changes = { { path = "/tmp/live.rs", kind = "update", diff = "+first" } },
+}
+view.render(reopened.buf, { live_diff })
+live_diff.changes = { { path = "/tmp/live.rs", kind = "update", diff = "-first\n+second" } }
+view.update(reopened.buf, { live_diff }, { type = "update", index = 1 })
+local live_diff_text = table.concat(vim.api.nvim_buf_get_lines(reopened.buf, 0, -1, false), "\n")
+assert(live_diff_text:find("-first", 1, true) and live_diff_text:find("+second", 1, true))
 
 view.set_status(reopened.buf, reopened.win, { type = "active" })
 assert(

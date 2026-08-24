@@ -29,12 +29,41 @@ session:handle("item/commandExecution/outputDelta", { itemId = "cmd-1", delta = 
 session:handle("item/completed", {
 	item = { type = "commandExecution", id = "cmd-1", command = "pwd", status = "completed", exitCode = 0 },
 })
+session:handle("item/started", {
+	item = {
+		type = "fileChange",
+		id = "files-1",
+		status = "inProgress",
+		changes = {
+			{ path = "/tmp/example.rs", kind = "update", diff = "@@ -1 +1 @@\n-old\n+new" },
+		},
+	},
+})
+session:handle("item/fileChange/patchUpdated", {
+	itemId = "files-1",
+	changes = {
+		{ path = "/tmp/example.rs", kind = "update", diff = "@@ -1 +1 @@\n-before\n+after" },
+	},
+})
+session:handle("item/completed", {
+	item = {
+		type = "fileChange",
+		id = "files-1",
+		status = "completed",
+		changes = {
+			{ path = "/tmp/example.rs", kind = "update", diff = "@@ -1 +1 @@\n-before\n+after" },
+		},
+	},
+})
 
 local messages = session:messages()
 assert(messages[1].role == "user" and messages[1].text == "Hello")
 assert(messages[2].role == "assistant" and messages[2].text == "Hello back")
 assert(messages[3].role == "tool" and messages[3].command == "pwd")
 assert(messages[3].output == "/tmp\n" and messages[3].status == "completed")
+assert(messages[4].role == "tool" and messages[4].kind == "file_change")
+assert(messages[4].changes[1].path == "/tmp/example.rs")
+assert(messages[4].changes[1].diff:find("+after", 1, true) and messages[4].status == "completed")
 assert(changes >= 7, "live event updates should notify the view")
 
 local replay = Session.new()
