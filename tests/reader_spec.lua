@@ -36,8 +36,51 @@ observer_opts.on_event("item/started", {
 	item = { type = "userMessage", id = "u1", content = { { type = "text", text = "Hello from Sidekick" } } },
 })
 assert(table.concat(vim.api.nvim_buf_get_lines(rendered, 0, -1, false), "\n"):find("Hello from Sidekick", 1, true))
+observer_opts.on_event("item/started", {
+	item = { type = "agentMessage", id = "a1", text = "", phase = "final_answer" },
+})
+observer_opts.on_event("item/agentMessage/delta", { itemId = "a1", delta = "Newest reply" })
+assert(
+	vim.api.nvim_win_get_cursor(0)[1] == vim.api.nvim_buf_line_count(rendered),
+	"follow mode should keep the cursor on the newest content"
+)
+
+vim.api.nvim_win_set_cursor(0, { 2, 0 })
+vim.cmd("doautocmd CursorMoved")
+local old_view = vim.fn.winsaveview()
+observer_opts.on_event("item/agentMessage/delta", { itemId = "a1", delta = " while reading" })
+assert(vim.api.nvim_win_get_cursor(0)[1] == 2, "background output must not move the cursor while reading history")
+assert(vim.fn.winsaveview().topline == old_view.topline, "background output must not move the viewport")
+assert(vim.wo[0].winbar:find("New output", 1, true), "new background output should be announced in the header")
 
 reader:toggle("%7", 0)
 assert(vim.api.nvim_win_get_buf(0) == origin, "the second toggle should restore the Sidekick terminal")
+
+reader:toggle("%7", 0)
+assert(vim.api.nvim_win_get_cursor(0)[1] == 2, "reopening should restore the old reading position")
+
+vim.api.nvim_win_set_cursor(0, { vim.api.nvim_buf_line_count(rendered), 0 })
+vim.cmd("doautocmd CursorMoved")
+observer_opts.on_event("item/started", {
+	item = { type = "userMessage", id = "u2", content = { { type = "text", text = "A later message" } } },
+})
+assert(
+	vim.api.nvim_win_get_cursor(0)[1] == vim.api.nvim_buf_line_count(rendered),
+	"moving to the last line should re-enter follow mode"
+)
+
+vim.api.nvim_win_set_cursor(0, { 2, 0 })
+vim.cmd("doautocmd CursorMoved")
+local follow_mapping = vim.fn.maparg("<C-f>", "n", false, true)
+assert(
+	follow_mapping.buffer == 1 and type(follow_mapping.callback) == "function",
+	"the reader should provide follow mode"
+)
+follow_mapping.callback()
+assert(
+	vim.api.nvim_win_get_cursor(0)[1] == vim.api.nvim_buf_line_count(rendered),
+	"Ctrl-f should return to the newest content"
+)
+assert(not vim.wo[0].winbar:find("New output", 1, true), "following again should clear the new output notice")
 
 print("reader_spec: ok")

@@ -1,10 +1,14 @@
 local Session = {}
 Session.__index = Session
 
+local function text(value)
+	return type(value) == "string" and value or ""
+end
+
 local function message_text(content)
 	local parts = {}
 	for _, part in ipairs(content or {}) do
-		if part.type == "text" and part.text then
+		if part.type == "text" and type(part.text) == "string" then
 			parts[#parts + 1] = part.text
 		end
 	end
@@ -16,6 +20,7 @@ function Session.new(opts)
 	return setmetatable({
 		by_id = {},
 		on_change = opts.on_change or function() end,
+		on_status = opts.on_status or function() end,
 		values = {},
 	}, Session)
 end
@@ -25,6 +30,7 @@ function Session:messages()
 end
 
 function Session:load(thread)
+	self.loading = true
 	self.by_id = {}
 	self.values = {}
 	for _, turn in ipairs(thread.turns or {}) do
@@ -35,52 +41,60 @@ function Session:load(thread)
 			end
 		end
 	end
-	self.on_change(self.values)
+	self.loading = false
+	self.on_change(self.values, { type = "reset" })
 end
 
 function Session:_insert(id, message)
 	if self.by_id[id] then
-		return self.values[self.by_id[id]]
+		local index = self.by_id[id]
+		return self.values[index], index, false
 	end
 	self.values[#self.values + 1] = message
 	self.by_id[id] = #self.values
-	return message
+	return message, #self.values, true
 end
 
 function Session:handle(method, params)
+	if method == "thread/status/changed" then
+		self.on_status(params.status or {})
+		return
+	end
 	local item = params.item
-	local changed = false
+	local change
 
 	if method == "item/started" and item then
 		if item.type == "userMessage" then
-			self:_insert(item.id, { id = item.id, role = "user", text = message_text(item.content) })
-			changed = true
+			local _, index, added =
+				self:_insert(item.id, { id = item.id, role = "user", text = message_text(item.content) })
+			change = { type = added and "append" or "update", index = index }
 		elseif item.type == "agentMessage" then
-			self:_insert(item.id, { id = item.id, role = "assistant", text = item.text or "", phase = item.phase })
-			changed = true
+			local _, index, added =
+				self:_insert(item.id, { id = item.id, role = "assistant", text = text(item.text), phase = item.phase })
+			change = { type = added and "append" or "update", index = index }
 		elseif item.type == "commandExecution" then
-			self:_insert(item.id, {
+			local _, index, added = self:_insert(item.id, {
 				id = item.id,
 				role = "tool",
 				kind = "command",
-				command = item.command,
+				command = text(item.command),
 				cwd = item.cwd,
-				output = item.aggregatedOutput or "",
+				output = text(item.aggregatedOutput),
 				status = item.status,
 			})
-			changed = true
+			change = { type = added and "append" or "update", index = index }
 		end
 	elseif method == "item/agentMessage/delta" then
 		local index = self.by_id[params.itemId]
 		if index then
-			self.values[index].text = self.values[index].text .. params.delta
-			changed = true
+			self.values[index].text = self.values[index].text .. text(params.delta)
+			change = { type = "update", index = index }
 		end
 	elseif method == "item/commandExecution/outputDelta" then
 		local index = self.by_id[params.itemId]
 		if index then
-			self.values[index].output = self.values[index].output .. params.delta
-			changed = true
+			self.values[index].output = self.values[index].output .. text(params.delta)
+			change = { type = "update", index = index }
 		end
 	elseif method == "item/completed" and item then
 		local index = self.by_id[item.id]
@@ -89,16 +103,18 @@ function Session:handle(method, params)
 			message.status = item.status
 			message.exit_code = item.exitCode
 			message.duration_ms = item.durationMs
-			message.output = item.aggregatedOutput or message.output
-			changed = true
-		elseif index and item.type == "agentMessage" and item.text then
+			if type(item.aggregatedOutput) == "string" then
+				message.output = item.aggregatedOutput
+			end
+			change = { type = "update", index = index }
+		elseif index and item.type == "agentMessage" and type(item.text) == "string" then
 			self.values[index].text = item.text
-			changed = true
+			change = { type = "update", index = index }
 		end
 	end
 
-	if changed then
-		self.on_change(self.values)
+	if change and not self.loading then
+		self.on_change(self.values, change)
 	end
 end
 

@@ -1,11 +1,18 @@
 local Session = require("hajimi.session")
 
 local changes = 0
+local status
 local session = Session.new({
 	on_change = function()
 		changes = changes + 1
 	end,
+	on_status = function(value)
+		status = value
+	end,
 })
+
+session:handle("thread/status/changed", { status = { type = "active" } })
+assert(status.type == "active", "thread status should reach the view")
 
 session:handle("item/started", {
 	item = { type = "userMessage", id = "user-1", content = { { type = "text", text = "Hello" } } },
@@ -42,5 +49,21 @@ replay:load({
 	},
 })
 assert(replay:messages()[1].text == "Earlier question" and replay:messages()[2].text == "Earlier answer")
+
+local nullable = Session.new()
+nullable:handle("item/started", {
+	item = {
+		type = "commandExecution",
+		id = "nullable-command",
+		command = "pwd",
+		aggregatedOutput = vim.NIL,
+		status = "inProgress",
+	},
+})
+nullable:handle("item/started", {
+	item = { type = "agentMessage", id = "nullable-agent", text = vim.NIL, phase = "final_answer" },
+})
+assert(type(nullable:messages()[1].output) == "string" and nullable:messages()[1].output == "")
+assert(type(nullable:messages()[2].text) == "string" and nullable:messages()[2].text == "")
 
 print("session_spec: ok")

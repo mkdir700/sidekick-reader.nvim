@@ -51,7 +51,7 @@ assert_equal({
 }, app:messages(), "the conversation should contain original user and assistant text")
 
 assert_equal(
-	{ "You", "Explain this", "", "Assistant", "checking", "", "Assistant", "finished" },
+	{ "", "Explain this", "", "checking", "", "finished" },
 	vim.api.nvim_buf_get_lines(opened.buf, 0, -1, false)
 )
 
