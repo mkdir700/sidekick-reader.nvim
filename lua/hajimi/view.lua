@@ -2,8 +2,20 @@ local M = {}
 
 local role_labels = {
 	assistant = "Assistant",
+	tool = "Command",
 	user = "You",
 }
+
+local function content_lines(message)
+	if message.role == "tool" and message.kind == "command" then
+		local lines = { "$ " .. message.command }
+		if message.output and message.output ~= "" then
+			vim.list_extend(lines, vim.split(message.output, "\n", { plain = true, trimempty = true }))
+		end
+		return lines
+	end
+	return vim.split(message.text or "", "\n", { plain = true })
+end
 
 local function message_lines(messages)
 	local lines = {}
@@ -12,7 +24,7 @@ local function message_lines(messages)
 	for index, message in ipairs(messages) do
 		starts[#starts + 1] = #lines + 1
 		lines[#lines + 1] = role_labels[message.role] or message.role
-		vim.list_extend(lines, vim.split(message.text, "\n", { plain = true }))
+		vim.list_extend(lines, content_lines(message))
 
 		if index < #messages then
 			lines[#lines + 1] = ""

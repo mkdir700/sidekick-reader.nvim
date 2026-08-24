@@ -1,46 +1,22 @@
 local hajimi = require("hajimi")
 
-local function assert_equal(expected, actual, message)
-	if not vim.deep_equal(expected, actual) then
-		error(
-			(message or "values differ")
-				.. "\nexpected: "
-				.. vim.inspect(expected)
-				.. "\nactual: "
-				.. vim.inspect(actual)
-		)
-	end
-end
-
-local sent
+local toggled
 hajimi.setup({
-	width = 30,
-	provider_factory = function(opts)
+	registry_dir = "/tmp/hajimi",
+	reader_factory = function()
 		return {
-			start = function(_, callback)
-				callback(nil)
-			end,
-			send = function(_, text, callback)
-				sent = text
-				opts.on_delta("Hajimi reply")
-				callback(nil)
-			end,
-			thread_id = function()
-				return "thread-command"
+			toggle = function(_, pane_id, win)
+				toggled = { pane_id = pane_id, win = win }
+				return true
 			end,
 		}
 	end,
 })
 
-dofile(vim.fn.getcwd() .. "/plugin/hajimi.lua")
-vim.cmd("Hajimi Explain this file")
+local ok = hajimi.toggle("%7", 0)
+assert(ok and toggled.pane_id == "%7" and toggled.win == 0)
 
-assert_equal("Explain this file", sent)
-assert_equal("hajimi", vim.bo.filetype)
-assert_equal("Hajimi reply", vim.api.nvim_buf_get_lines(0, 4, 5, false)[1])
-assert(vim.fn.maparg("i", "n") ~= "", "the conversation should provide an input key")
-assert(vim.fn.maparg("]m", "n") ~= "", "the conversation should provide next-message navigation")
-assert(vim.fn.maparg("[m", "n") ~= "", "the conversation should provide previous-message navigation")
+dofile(vim.fn.getcwd() .. "/plugin/hajimi.lua")
 assert(vim.fn.exists(":Hajimi") == 2, "the Hajimi command should exist")
 
 print("plugin_spec: ok")

@@ -4,12 +4,8 @@ end
 vim.g.loaded_hajimi = true
 
 vim.api.nvim_create_user_command("Hajimi", function(opts)
-	if opts.args == "" then
-		require("hajimi").open()
-	else
-		require("hajimi").ask(opts.args)
-	end
+	require("hajimi").toggle(opts.args ~= "" and opts.args or nil)
 end, {
-	nargs = "*",
-	desc = "Open Hajimi or ask a question",
+	nargs = "?",
+	desc = "Toggle the Hajimi view for a Sidekick Codex session",
 })

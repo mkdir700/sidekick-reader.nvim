@@ -55,4 +55,10 @@ assert_equal({ 4, 0 }, vim.api.nvim_win_get_cursor(reopened.win), "next message 
 view.jump(reopened.buf, -1)
 assert_equal({ 1, 0 }, vim.api.nvim_win_get_cursor(reopened.win), "previous message should jump back to its heading")
 
+view.render(reopened.buf, {
+	{ role = "tool", kind = "command", command = "pwd", output = "/tmp\n", status = "completed" },
+})
+local tool_text = table.concat(vim.api.nvim_buf_get_lines(reopened.buf, 0, -1, false), "\n")
+assert(tool_text:find("pwd", 1, true) and tool_text:find("/tmp", 1, true), "command activity should be readable")
+
 print("view_spec: ok")

@@ -1,13 +1,15 @@
 # hajimi.nvim
 
-哈基米是在 Neovim 中使用编程助手的原生对话界面。当前首个支持的助手是 Codex。
+哈基米是 Sidekick Codex 会话的实时阅读模式。
 
-目前完成了第一条可用流程：打开对话、向 Codex 提问、实时显示回复、按消息跳转，并在关闭页面后继续同一次对话。消息使用普通 Neovim 页面显示，窗口折行不会改变复制出来的原文。
+提问、确认操作和会话管理仍在 Sidekick 中完成。在 Sidekick Codex 窗口按下快捷键后，当前窗口切换为哈基米渲染页；再次按下快捷键或按 `q` 返回原来的 Sidekick 终端。Codex 在 tmux 中持续运行，不会因切换阅读模式而中断。
 
 ## 要求
 
 - Neovim 0.11 或更高版本
 - 已安装并登录的 `codex` 命令
+- Node.js 22 或更高版本
+- Sidekick 使用 tmux 保存 Codex 会话
 
 ## 本地安装
 
@@ -18,6 +20,7 @@
   dir = "/Users/mark/MyProjects/hajimi.nvim",
   name = "hajimi.nvim",
   opts = {
+    registry_dir = vim.fs.joinpath(vim.fn.stdpath("state"), "hajimi"),
     width = 60,
   },
 }
@@ -25,16 +28,15 @@
 
 ## 使用
 
-- `:Hajimi`：打开当前对话
-- `:Hajimi 你的问题`：打开并提问
-- `i`：在哈基米页面中输入新问题
+- 在 Sidekick Codex 窗口按 `<C-]>`：切换哈基米阅读模式
+- 在哈基米页面按 `<C-]>`：返回 Sidekick
 - `]m`：跳到下一条消息
 - `[m`：跳到上一条消息
-- `q`：暂时关闭页面
+- `q`：返回 Sidekick
 
 ## 当前范围
 
-第一版只接入 Codex。界面和对话内容不依赖 Codex 的终端画面，后续可以在不重做界面的情况下接入其他编程助手。
+哈基米不解析 Sidekick 终端画面。Sidekick 启动 Codex 时会同时启动一个隔离的 App Server；Codex 终端和哈基米观察器连接同一个后台，因此渲染页可以读取原始消息并实时刷新，不受终端折行影响。
 
 Codex 连接依据 [OpenAI 官方 App Server 说明](https://learn.chatgpt.com/docs/app-server)。
 
