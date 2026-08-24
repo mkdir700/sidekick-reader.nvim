@@ -1,4 +1,4 @@
-local view = require("hajimi.view")
+local view = require("sidekick_reader.view")
 
 local function assert_equal(expected, actual, message)
 	if not vim.deep_equal(expected, actual) then
@@ -12,7 +12,8 @@ local function assert_equal(expected, actual, message)
 	end
 end
 
-local original = "This reply is deliberately longer than the narrow Hajimi window but contains no source newline."
+local original =
+	"This reply is deliberately longer than the narrow Sidekick Reader window but contains no source newline."
 local result = view.open({
 	width = 24,
 	messages = {
@@ -34,7 +35,10 @@ for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(result.buf, -1, 0, -1, { det
 		end
 	end
 end
-assert(table.concat(labels, " "):find("Hajimi", 1, true), "the assistant role should be visual, not buffer text")
+assert(
+	table.concat(labels, " "):find("Sidekick Reader", 1, true),
+	"the assistant role should be visual, not buffer text"
+)
 
 vim.api.nvim_set_current_win(result.win)
 vim.api.nvim_win_set_cursor(result.win, { 2, 0 })

@@ -1,4 +1,4 @@
-local Observer = require("hajimi.observer")
+local Observer = require("sidekick_reader.observer")
 
 local events = {}
 local observer = Observer.new({

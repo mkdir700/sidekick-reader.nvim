@@ -1,9 +1,9 @@
 local M = {}
-local ns = vim.api.nvim_create_namespace("hajimi_view")
+local ns = vim.api.nvim_create_namespace("sidekick_reader_view")
 local timers = {}
 local layouts = {}
 
-local labels = { user = "You", assistant = "Hajimi", tool = "Command" }
+local labels = { user = "You", assistant = "Sidekick Reader", tool = "Command" }
 
 local function text(value)
 	return type(value) == "string" and value or ""
@@ -55,14 +55,16 @@ local function highlights()
 	local assistant = vim.api.nvim_get_hl(0, { name = "Function", link = false })
 	local tool = vim.api.nvim_get_hl(0, { name = "DiagnosticWarn", link = false })
 	local header_bg = cursor.bg or normal.bg
-	vim.api.nvim_set_hl(0, "HajimiUser", { fg = user.fg, bg = header_bg, bold = true })
-	vim.api.nvim_set_hl(0, "HajimiAssistant", { fg = assistant.fg, bg = header_bg, bold = true })
-	vim.api.nvim_set_hl(0, "HajimiTool", { fg = tool.fg, bg = header_bg, bold = true })
-	vim.api.nvim_set_hl(0, "HajimiMuted", { link = "Comment", default = true })
+	vim.api.nvim_set_hl(0, "SidekickReaderUser", { fg = user.fg, bg = header_bg, bold = true })
+	vim.api.nvim_set_hl(0, "SidekickReaderAssistant", { fg = assistant.fg, bg = header_bg, bold = true })
+	vim.api.nvim_set_hl(0, "SidekickReaderTool", { fg = tool.fg, bg = header_bg, bold = true })
+	vim.api.nvim_set_hl(0, "SidekickReaderMuted", { link = "Comment", default = true })
 end
 
 local function decoration(buf, item, width)
-	local group = item.role == "user" and "HajimiUser" or item.role == "tool" and "HajimiTool" or "HajimiAssistant"
+	local group = item.role == "user" and "SidekickReaderUser"
+		or item.role == "tool" and "SidekickReaderTool"
+		or "SidekickReaderAssistant"
 	local title = "  " .. item.label
 	local padding = string.rep(" ", math.max(width - vim.fn.strdisplaywidth(title), 1))
 	item.marks = {
@@ -73,7 +75,7 @@ local function decoration(buf, item, width)
 	}
 	if item.role == "tool" then
 		item.marks[#item.marks + 1] = vim.api.nvim_buf_set_extmark(buf, ns, item.line - 1, 0, {
-			virt_text = { { "$ ", "HajimiTool" } },
+			virt_text = { { "$ ", "SidekickReaderTool" } },
 			virt_text_pos = "inline",
 		})
 	end
@@ -81,7 +83,7 @@ end
 
 function M.attach(buf, win)
 	highlights()
-	vim.b[buf].hajimi_view = true
+	vim.b[buf].sidekick_reader_view = true
 	vim.wo[win].wrap = true
 	vim.wo[win].linebreak = true
 	vim.wo[win].breakindent = true
@@ -92,7 +94,7 @@ function M.attach(buf, win)
 	vim.wo[win].signcolumn = "no"
 	vim.wo[win].fillchars = "eob: "
 	vim.wo[win].winhighlight = "Normal:Normal,WinBar:Normal"
-	vim.wo[win].winbar = "%#Title#  Hajimi%*%=%#Comment#Ready  %*"
+	vim.wo[win].winbar = "%#Title#  Sidekick Reader%*%=%#Comment#Ready  %*"
 end
 
 function M.open(opts)
@@ -113,9 +115,9 @@ function M.open(opts)
 	vim.bo[buf].buftype = "nofile"
 	vim.bo[buf].bufhidden = "hide"
 	vim.bo[buf].swapfile = false
-	vim.bo[buf].filetype = "hajimi"
+	vim.bo[buf].filetype = "sidekick-reader"
 	if not reuse then
-		vim.api.nvim_buf_set_name(buf, "hajimi://conversation")
+		vim.api.nvim_buf_set_name(buf, "sidekick-reader://conversation")
 	end
 	M.attach(buf, win)
 	M.render(buf, opts.messages or {})
@@ -127,7 +129,7 @@ function M.render(buf, messages)
 	vim.bo[buf].modifiable = true
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	vim.bo[buf].modifiable = false
-	vim.b[buf].hajimi_message_lines = starts
+	vim.b[buf].sidekick_reader_message_lines = starts
 	vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
 	local wins = vim.fn.win_findbuf(buf)
 	local width = #wins > 0 and vim.api.nvim_win_get_width(wins[1]) or 60
@@ -188,9 +190,9 @@ function M.update(buf, messages, change)
 		decoration(buf, item, width)
 		layout.count = change.index
 		layout.ranges[change.index] = item
-		local starts = vim.b[buf].hajimi_message_lines or {}
+		local starts = vim.b[buf].sidekick_reader_message_lines or {}
 		starts[#starts + 1] = item.line
-		vim.b[buf].hajimi_message_lines = starts
+		vim.b[buf].sidekick_reader_message_lines = starts
 		return
 	end
 
@@ -239,7 +241,7 @@ function M.set_status(buf, win, status)
 					return
 				end
 				local suffix = unread and " · New output" or ""
-				vim.wo[win].winbar = "%#Title#  Hajimi%*%=%#DiagnosticInfo#"
+				vim.wo[win].winbar = "%#Title#  Sidekick Reader%*%=%#DiagnosticInfo#"
 					.. frames[index]
 					.. " Working"
 					.. suffix
@@ -249,12 +251,12 @@ function M.set_status(buf, win, status)
 		)
 	else
 		local label = unread and "New output" or "Ready"
-		vim.wo[win].winbar = "%#Title#  Hajimi%*%=%#Comment#" .. label .. "  %*"
+		vim.wo[win].winbar = "%#Title#  Sidekick Reader%*%=%#Comment#" .. label .. "  %*"
 	end
 end
 
 function M.latest_start(buf)
-	local starts = vim.b[buf].hajimi_message_lines or {}
+	local starts = vim.b[buf].sidekick_reader_message_lines or {}
 	return starts[#starts] or 1
 end
 
@@ -274,7 +276,7 @@ function M.follow(buf, win)
 end
 
 function M.jump(buf, direction)
-	local starts = vim.b[buf].hajimi_message_lines or {}
+	local starts = vim.b[buf].sidekick_reader_message_lines or {}
 	if #starts == 0 then
 		return
 	end

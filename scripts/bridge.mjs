@@ -45,14 +45,14 @@ function waitForReady(url, child) {
 }
 
 async function launch(args) {
-  const registryDir = process.env.HAJIMI_REGISTRY_DIR;
+  const registryDir = process.env.SIDEKICK_READER_REGISTRY_DIR;
   const pane = process.env.TMUX_PANE;
-  if (!registryDir || !pane) throw new Error("Hajimi launcher requires HAJIMI_REGISTRY_DIR and TMUX_PANE");
+  if (!registryDir || !pane) throw new Error("Sidekick Reader launcher requires SIDEKICK_READER_REGISTRY_DIR and TMUX_PANE");
 
   await mkdir(registryDir, { recursive: true });
   const port = await allocatePort();
   const url = `ws://127.0.0.1:${port}`;
-  const codex = process.env.HAJIMI_CODEX_BIN || "codex";
+  const codex = process.env.SIDEKICK_READER_CODEX_BIN || "codex";
   const server = spawn(codex, ["app-server", "--listen", url], { stdio: "ignore" });
   const file = registrationPath(registryDir, pane);
   const temporary = `${file}.${process.pid}.tmp`;
@@ -99,7 +99,7 @@ function observe(url) {
     socket.send(JSON.stringify({
       id: 1,
       method: "initialize",
-      params: { clientInfo: { name: "hajimi.nvim", version: "0.1.0" } },
+      params: { clientInfo: { name: "sidekick-reader.nvim", version: "0.1.0" } },
     }));
   });
   socket.addEventListener("message", (event) => {

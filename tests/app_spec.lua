@@ -1,5 +1,5 @@
-local App = require("hajimi.app")
-local view = require("hajimi.view")
+local App = require("sidekick_reader.app")
+local view = require("sidekick_reader.view")
 
 local function assert_equal(expected, actual, message)
 	if not vim.deep_equal(expected, actual) then

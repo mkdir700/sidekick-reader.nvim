@@ -13,7 +13,7 @@ end
 
 function Observer:start(url)
 	local script = vim.api.nvim_get_runtime_file("scripts/bridge.mjs", false)[1]
-	assert(script, "Hajimi bridge script is missing")
+	assert(script, "Sidekick Reader bridge script is missing")
 	self.process = vim.system({ "node", script, "observe", url }, {
 		text = true,
 		stdout = function(err, data)
@@ -35,7 +35,7 @@ function Observer:start(url)
 	}, function(result)
 		if not self.stopping and result.code ~= 0 then
 			vim.schedule(function()
-				self.on_error("Hajimi observer stopped with exit code " .. result.code)
+				self.on_error("Sidekick Reader observer stopped with exit code " .. result.code)
 			end)
 		end
 	end)
@@ -53,7 +53,7 @@ function Observer:feed(chunk)
 		if line ~= "" then
 			local ok, message = pcall(vim.json.decode, line)
 			if not ok then
-				self.on_error("Invalid Hajimi bridge event")
+				self.on_error("Invalid Sidekick Reader bridge event")
 			elseif message.method then
 				self.on_event(message.method, message.params or {})
 			elseif message.result then

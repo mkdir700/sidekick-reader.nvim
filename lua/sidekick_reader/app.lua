@@ -6,9 +6,9 @@ function App.new(opts)
 
 	return setmetatable({
 		cwd = opts.cwd or vim.fn.getcwd(),
-		view = opts.view or require("hajimi.view"),
+		view = opts.view or require("sidekick_reader.view"),
 		provider_factory = opts.provider_factory or function(provider_opts)
-			return require("hajimi.providers.codex.client").new(provider_opts)
+			return require("sidekick_reader.providers.codex.client").new(provider_opts)
 		end,
 		conversation = {},
 	}, App)
@@ -85,7 +85,7 @@ function App:_connect(callback)
 			end
 		end,
 		on_error = function(err)
-			vim.notify("Hajimi: " .. err, vim.log.levels.ERROR)
+			vim.notify("Sidekick Reader: " .. err, vim.log.levels.ERROR)
 		end,
 	})
 

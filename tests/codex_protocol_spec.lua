@@ -1,4 +1,4 @@
-local Protocol = require("hajimi.providers.codex.protocol")
+local Protocol = require("sidekick_reader.providers.codex.protocol")
 
 local function assert_equal(expected, actual, message)
 	if not vim.deep_equal(expected, actual) then
@@ -22,7 +22,8 @@ local protocol = Protocol.new({
 })
 
 protocol:feed(
-	'{"method":"item/agentMessage/delta","params":{"delta":"hello ","threadId":"t","turnId":"x","itemId":"i"}}\n{"method":"item/agent'
+	'{"method":"item/agentMessage/delta","params":{"delta":"hello ",'
+		.. '"threadId":"t","turnId":"x","itemId":"i"}}\n{"method":"item/agent'
 )
 assert_equal({ "hello " }, deltas, "complete events should be delivered immediately")
 
@@ -32,7 +33,7 @@ assert_equal({ "hello ", "world" }, deltas, "partial events should be reassemble
 local response
 local request = protocol:request(
 	"initialize",
-	{ clientInfo = { name = "hajimi", version = "0.1.0" } },
+	{ clientInfo = { name = "sidekick-reader", version = "0.1.0" } },
 	function(err, result)
 		assert_equal(nil, err)
 		response = result
@@ -41,7 +42,7 @@ local request = protocol:request(
 
 local decoded = vim.json.decode(request)
 assert_equal("initialize", decoded.method)
-assert_equal("hajimi", decoded.params.clientInfo.name)
+assert_equal("sidekick-reader", decoded.params.clientInfo.name)
 
 protocol:feed(vim.json.encode({ id = decoded.id, result = { userAgent = "codex-test" } }) .. "\n")
 assert_equal({ userAgent = "codex-test" }, response, "responses should reach the matching request")

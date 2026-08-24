@@ -1,4 +1,4 @@
-local Client = require("hajimi.providers.codex.client")
+local Client = require("sidekick_reader.providers.codex.client")
 
 local function assert_equal(expected, actual, message)
 	if not vim.deep_equal(expected, actual) then

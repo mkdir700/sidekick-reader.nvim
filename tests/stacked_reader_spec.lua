@@ -1,4 +1,4 @@
-local Reader = require("hajimi.reader")
+local Reader = require("sidekick_reader.reader")
 
 local terminal_buf = vim.api.nvim_create_buf(false, true)
 local terminal_win = vim.api.nvim_get_current_win()
@@ -13,12 +13,12 @@ local reader = Reader.new({
 			return { url = "ws://127.0.0.1:4567" }
 		end,
 	},
-	registry_dir = "/tmp/hajimi-test",
+	registry_dir = "/tmp/sidekick_reader-test",
 	observer_factory = function()
 		return {
 			start = function() end,
 			stop = function()
-				_G.hajimi_observer_stopped = true
+				_G.sidekick_reader_observer_stopped = true
 			end,
 		}
 	end,
@@ -40,7 +40,7 @@ assert(vim.api.nvim_win_get_buf(terminal_win) == terminal_buf, "the original Sid
 
 local viewer_win
 for _, win in ipairs(vim.api.nvim_list_wins()) do
-	if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "hajimi" then
+	if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "sidekick-reader" then
 		viewer_win = win
 	end
 end
@@ -64,6 +64,7 @@ assert(#vim.api.nvim_list_wins() == initial_windows + 1, "showing Sidekick shoul
 
 local state = reader.states["%8"]
 vim.api.nvim_set_current_win(state.win)
+assert(vim.fn.maparg("gf", "n") ~= "", "the reader should provide a file-open key")
 vim.bo[state.buf].modifiable = true
 vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, { "first", "second", "latest" })
 vim.bo[state.buf].modifiable = false
@@ -85,6 +86,6 @@ assert(terminal.hidden, "q should hide the whole Sidekick workspace")
 
 reader:close("%8")
 assert(reader.states["%8"] == nil, "closing Sidekick should discard the reader state")
-assert(_G.hajimi_observer_stopped, "closing Sidekick should stop the observer")
+assert(_G.sidekick_reader_observer_stopped, "closing Sidekick should stop the observer")
 
 print("stacked_reader_spec: ok")

@@ -1,4 +1,4 @@
-local Client = require("hajimi.providers.codex.client")
+local Client = require("sidekick_reader.providers.codex.client")
 
 local reply = ""
 local failure
@@ -27,7 +27,7 @@ assert(
 )
 assert(not failure, failure)
 
-client:send("Reply with exactly HAJIMI_OK. Do not use tools or modify files.", function(err)
+client:send("Reply with exactly SIDEKICK_READER_OK. Do not use tools or modify files.", function(err)
 	failure = err
 	completed = err == nil
 end)
@@ -41,6 +41,6 @@ assert(
 
 client:stop()
 assert(not failure, failure)
-assert(reply:find("HAJIMI_OK", 1, true), "Unexpected real Codex reply: " .. reply)
+assert(reply:find("SIDEKICK_READER_OK", 1, true), "Unexpected real Codex reply: " .. reply)
 
 print("real_codex_smoke: " .. reply)

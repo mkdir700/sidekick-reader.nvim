@@ -1,4 +1,4 @@
-local Reader = require("hajimi.reader")
+local Reader = require("sidekick_reader.reader")
 
 local origin = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_win_set_buf(0, origin)
@@ -13,7 +13,7 @@ local reader = Reader.new({
 			end
 		end,
 	},
-	registry_dir = "/tmp/hajimi-test",
+	registry_dir = "/tmp/sidekick_reader-test",
 	observer_factory = function(opts)
 		observer_opts = opts
 		return {
@@ -26,8 +26,11 @@ local reader = Reader.new({
 
 reader:toggle("%7", 0)
 local rendered = vim.api.nvim_win_get_buf(0)
-assert(rendered ~= origin and vim.bo[rendered].filetype == "hajimi", "the current window should show the reader")
-assert(vim.b[rendered].hajimi_pane_id == "%7", "the rendered buffer should remember its Sidekick pane")
+assert(
+	rendered ~= origin and vim.bo[rendered].filetype == "sidekick-reader",
+	"the current window should show the reader"
+)
+assert(vim.b[rendered].sidekick_reader_pane_id == "%7", "the rendered buffer should remember its Sidekick pane")
 vim.api.nvim_set_current_win(0)
 assert(vim.fn.maparg("<C-]>", "n") ~= "", "the reader should provide the same return key")
 assert(observed_url == "ws://127.0.0.1:4567", "the reader observed the wrong Sidekick session")

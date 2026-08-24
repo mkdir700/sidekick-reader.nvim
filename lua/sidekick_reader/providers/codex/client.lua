@@ -1,4 +1,4 @@
-local Protocol = require("hajimi.providers.codex.protocol")
+local Protocol = require("sidekick_reader.providers.codex.protocol")
 
 local Client = {}
 Client.__index = Client
@@ -58,8 +58,8 @@ function Client:start(callback)
 
 	self:_write(self.protocol:request("initialize", {
 		clientInfo = {
-			name = "hajimi.nvim",
-			title = "Hajimi",
+			name = "sidekick-reader.nvim",
+			title = "Sidekick Reader",
 			version = "0.1.0",
 		},
 	}, function(err)

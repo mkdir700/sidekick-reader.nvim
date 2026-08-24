@@ -3,7 +3,7 @@ import { allocatePort, registrationPath, shouldEmit } from "../scripts/bridge.mj
 
 const port = await allocatePort();
 assert(port > 0 && port < 65536, "a usable loopback port should be allocated");
-assert.equal(registrationPath("/tmp/hajimi", "%7"), "/tmp/hajimi/%7.json");
+assert.equal(registrationPath("/tmp/sidekick-reader", "%7"), "/tmp/sidekick-reader/%7.json");
 assert.equal(shouldEmit({ id: 2, result: { data: [{ id: "many-global-sessions" }] } }), false);
 assert.equal(shouldEmit({ id: 3, result: { thread: { id: "active" } } }), true);
 assert.equal(shouldEmit({ method: "item/agentMessage/delta", params: {} }), true);

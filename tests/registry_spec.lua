@@ -1,4 +1,4 @@
-local registry = require("hajimi.registry")
+local registry = require("sidekick_reader.registry")
 
 local dir = vim.fn.tempname()
 vim.fn.mkdir(dir, "p")

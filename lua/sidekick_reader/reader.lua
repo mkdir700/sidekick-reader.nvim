@@ -1,7 +1,8 @@
-local Observer = require("hajimi.observer")
-local Registry = require("hajimi.registry")
-local Session = require("hajimi.session")
-local View = require("hajimi.view")
+local Observer = require("sidekick_reader.observer")
+local FileReference = require("sidekick_reader.file_reference")
+local Registry = require("sidekick_reader.registry")
+local Session = require("sidekick_reader.session")
+local View = require("sidekick_reader.view")
 
 local Reader = {}
 Reader.__index = Reader
@@ -129,7 +130,7 @@ function Reader:toggle(pane_id, win)
 	if not state then
 		local entry = self.registry.read(self.registry_dir, pane_id)
 		if not entry then
-			return nil, "No Hajimi session is registered for this Sidekick pane"
+			return nil, "No Sidekick Reader session is registered for this Sidekick pane"
 		end
 
 		local origin_buf = vim.api.nvim_win_get_buf(win)
@@ -153,9 +154,9 @@ function Reader:toggle(pane_id, win)
 		vim.bo[buf].buftype = "nofile"
 		vim.bo[buf].bufhidden = "hide"
 		vim.bo[buf].swapfile = false
-		vim.bo[buf].filetype = "hajimi"
-		vim.b[buf].hajimi_pane_id = pane_id
-		vim.api.nvim_buf_set_name(buf, "hajimi://" .. pane_id)
+		vim.bo[buf].filetype = "sidekick-reader"
+		vim.b[buf].sidekick_reader_pane_id = pane_id
+		vim.api.nvim_buf_set_name(buf, "sidekick-reader://" .. pane_id)
 
 		state = {
 			buf = buf,
@@ -199,7 +200,7 @@ function Reader:toggle(pane_id, win)
 				state.session:handle(method, params)
 			end,
 			on_error = function(err)
-				vim.notify("Hajimi: " .. err, vim.log.levels.ERROR)
+				vim.notify("Sidekick Reader: " .. err, vim.log.levels.ERROR)
 			end,
 			on_response = function(result)
 				if result.thread then
@@ -229,10 +230,16 @@ function Reader:toggle(pane_id, win)
 		end, { buffer = buf, desc = "Focus Sidekick input" })
 		vim.keymap.set("n", "]m", function()
 			View.jump(buf, 1)
-		end, { buffer = buf, desc = "Next Hajimi message" })
+		end, { buffer = buf, desc = "Next Sidekick Reader message" })
 		vim.keymap.set("n", "[m", function()
 			View.jump(buf, -1)
-		end, { buffer = buf, desc = "Previous Hajimi message" })
+		end, { buffer = buf, desc = "Previous Sidekick Reader message" })
+		vim.keymap.set("n", "gf", function()
+			local ok, err = FileReference.open_under_cursor(state.win)
+			if not ok then
+				vim.notify("Sidekick Reader: " .. err, vim.log.levels.WARN)
+			end
+		end, { buffer = buf, desc = "Open file reference on the left" })
 		vim.keymap.set("n", "G", function()
 			state.follow = true
 			state.unread = false
@@ -243,7 +250,7 @@ function Reader:toggle(pane_id, win)
 				vim.tbl_extend("force", {}, state.status or { type = "idle" }, { unread = false })
 			)
 			View.follow(buf, state.win)
-		end, { buffer = buf, desc = "Follow Latest Hajimi Message" })
+		end, { buffer = buf, desc = "Follow Latest Sidekick Reader Message" })
 		vim.api.nvim_create_autocmd("CursorMoved", {
 			buffer = buf,
 			callback = function()

@@ -1,4 +1,4 @@
-local Session = require("hajimi.session")
+local Session = require("sidekick_reader.session")
 
 local changes = 0
 local status
