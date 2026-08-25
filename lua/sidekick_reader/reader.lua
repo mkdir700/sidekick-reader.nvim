@@ -237,6 +237,8 @@ function Reader:toggle(pane_id, win)
 			View.jump(buf, -1)
 		end, { buffer = buf, desc = "Previous Sidekick Reader message" })
 		vim.keymap.set("n", "]g", function()
+			state.follow = false
+			state.suppress_follow_once = true
 			View.jump_edge(buf, "last")
 		end, { buffer = buf, desc = "Last Sidekick Reader message" })
 		vim.keymap.set("n", "[g", function()
@@ -276,7 +278,9 @@ function Reader:toggle(pane_id, win)
 			buffer = buf,
 			callback = function()
 				local cursor = vim.api.nvim_win_get_cursor(0)[1]
-				if cursor >= vim.api.nvim_buf_line_count(buf) then
+				if state.suppress_follow_once then
+					state.suppress_follow_once = nil
+				elseif cursor >= vim.api.nvim_buf_line_count(buf) then
 					state.follow = true
 					state.unread = false
 					state.saved_view = nil

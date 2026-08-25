@@ -94,10 +94,17 @@ local last_mapping = vim.fn.maparg("]g", "n", false, true)
 local first_mapping = vim.fn.maparg("[g", "n", false, true)
 assert(type(last_mapping.callback) == "function", "the reader should jump to the last message with ]g")
 assert(type(first_mapping.callback) == "function", "the reader should jump to the first message with [g")
+observer_opts.on_event("item/started", {
+	item = { type = "agentMessage", id = "a2", text = "First line", phase = "final_answer" },
+})
 vim.api.nvim_win_set_cursor(0, { 4, 0 })
-last_mapping.callback()
-assert(vim.api.nvim_win_get_cursor(0)[1] == 6, "]g should move to the last message")
-first_mapping.callback()
+vim.api.nvim_feedkeys("]g", "x", false)
+local last_start = vim.b[rendered].sidekick_reader_message_lines[#vim.b[rendered].sidekick_reader_message_lines]
+assert(vim.api.nvim_win_get_cursor(0)[1] == last_start, "]g should move to the start of the last message")
+vim.cmd("doautocmd CursorMoved")
+observer_opts.on_event("item/agentMessage/delta", { itemId = "a2", delta = "\nSecond line\nThird line" })
+assert(vim.api.nvim_win_get_cursor(0)[1] == last_start, "]g should stop following at the start of the last message")
+vim.api.nvim_feedkeys("[g", "x", false)
 assert(vim.api.nvim_win_get_cursor(0)[1] == 2, "[g should move to the first message")
 
 print("reader_spec: ok")
