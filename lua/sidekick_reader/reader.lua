@@ -220,15 +220,24 @@ function Reader:toggle(pane_id, win)
 				self:hide(pane_id)
 			end
 		end, { buffer = buf, desc = "Hide Sidekick workspace" })
-		vim.keymap.set("n", "<C-]>", function()
+		local function focus_terminal()
+			if self.layout == "replace" then
+				self:hide(pane_id)
+				if state.terminal and state.terminal.win and vim.api.nvim_win_is_valid(state.terminal.win) then
+					vim.api.nvim_set_current_win(state.terminal.win)
+					vim.cmd.startinsert()
+					return
+				end
+			end
 			if state.terminal and state.terminal.focus then
 				state.terminal:focus()
 			end
+		end
+		vim.keymap.set("n", "<C-]>", function()
+			focus_terminal()
 		end, { buffer = buf, desc = "Focus Sidekick input" })
 		vim.keymap.set("n", "i", function()
-			if state.terminal and state.terminal.focus then
-				state.terminal:focus()
-			end
+			focus_terminal()
 		end, { buffer = buf, desc = "Focus Sidekick input" })
 		vim.keymap.set("n", "]m", function()
 			View.jump(buf, 1)

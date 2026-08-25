@@ -107,4 +107,19 @@ assert(vim.api.nvim_win_get_cursor(0)[1] == last_start, "]g should stop followin
 vim.api.nvim_feedkeys("[g", "x", false)
 assert(vim.api.nvim_win_get_cursor(0)[1] == 2, "[g should move to the first message")
 
+local terminal = {
+	win = 0,
+	focus = function(self)
+		self.focused = true
+	end,
+}
+reader:show("%7", 0, terminal)
+local input_mapping = vim.fn.maparg("i", "n", false, true)
+assert(type(input_mapping.callback) == "function", "the reader should provide a return-to-input key")
+input_mapping.callback()
+assert(vim.api.nvim_win_get_buf(0) == origin, "the input key should restore the Sidekick terminal")
+assert(not terminal.focused, "restoring the Sidekick terminal should not reopen the reader through Sidekick's show hook")
+reader:focus("%7", 0, terminal)
+assert(vim.api.nvim_win_get_buf(0) == rendered, "focusing the reader again should restore it")
+
 print("reader_spec: ok")
