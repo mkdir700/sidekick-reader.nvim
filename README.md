@@ -38,100 +38,11 @@ The example below is a complete [lazy.nvim](https://github.com/folke/lazy.nvim) 
   dependencies = {
     {
       "mkdir700/sidekick-reader.nvim",
-      dependencies = {
-        "MunifTanjim/nui.nvim",
-        "sindrets/diffview.nvim",
-      },
+      dependencies = { "MunifTanjim/nui.nvim", "sindrets/diffview.nvim" },
     },
   },
   opts = function(_, opts)
-    local registry_dir = vim.fs.joinpath(vim.fn.stdpath("state"), "sidekick-reader")
-    local bridge = vim.api.nvim_get_runtime_file("scripts/bridge.mjs", false)[1]
-
-    local function pane_for(terminal)
-      local ok, states = pcall(require("sidekick.cli.state").get, {
-        attached = true,
-        name = "codex",
-      })
-      if not ok then
-        return
-      end
-      for _, state in ipairs(states) do
-        if state.terminal == terminal and state.session then
-          local session = state.session.parent or state.session
-          return session.tmux_pane_id
-        end
-      end
-    end
-
-    opts.cli = opts.cli or {}
-    opts.cli.mux = {
-      enabled = true,
-      backend = "tmux",
-    }
-    opts.cli.tools = opts.cli.tools or {}
-    opts.cli.tools.codex = vim.tbl_deep_extend("force", opts.cli.tools.codex or {}, {
-      cmd = { "node", bridge, "launch" },
-      env = { SIDEKICK_READER_REGISTRY_DIR = registry_dir },
-    })
-
-    opts.cli.win = opts.cli.win or {}
-    local user_config = opts.cli.win.config
-    opts.cli.win.config = function(terminal)
-      if user_config then
-        user_config(terminal)
-      end
-      if terminal._sidekick_reader_wrapped then
-        return
-      end
-      terminal._sidekick_reader_wrapped = true
-
-      local show = terminal.show
-      local hide = terminal.hide
-      local close = terminal.close
-
-      terminal.show = function(self, ...)
-        local result = show(self, ...)
-        local pane = pane_for(self)
-        if pane and self.win then
-          require("sidekick_reader").sidekick_show(pane, self.win, self)
-        end
-        return result
-      end
-      terminal.hide = function(self, ...)
-        local pane = pane_for(self)
-        if pane then
-          require("sidekick_reader").sidekick_hide(pane)
-        end
-        return hide(self, ...)
-      end
-      terminal.close = function(self, ...)
-        local pane = pane_for(self)
-        if pane then
-          require("sidekick_reader").sidekick_close(pane)
-        end
-        return close(self, ...)
-      end
-    end
-
-    opts.cli.win.keys = opts.cli.win.keys or {}
-    opts.cli.win.keys.sidekick_reader = {
-      "<C-]>",
-      function(terminal)
-        local pane = pane_for(terminal)
-        if pane and terminal.win then
-          require("sidekick_reader").focus(pane, terminal.win, terminal)
-        end
-      end,
-      mode = { "n", "t" },
-      desc = "Focus Sidekick Reader",
-    }
-
-    require("sidekick_reader").setup({
-      registry_dir = registry_dir,
-      layout = "stacked",
-      viewer_ratio = 0.8,
-    })
+    require("sidekick_reader.integrations.sidekick").setup(opts)
   end,
   keys = {
     {
@@ -169,7 +80,7 @@ Commands are folded automatically. Standard Neovim fold commands such as `za`, `
 `stacked` keeps both views visible, with the reader above the Sidekick terminal:
 
 ```lua
-require("sidekick_reader").setup({
+require("sidekick_reader.integrations.sidekick").setup(opts, {
   layout = "stacked",
   viewer_ratio = 0.8, -- 80% reader, 20% terminal
 })
@@ -178,12 +89,12 @@ require("sidekick_reader").setup({
 `replace` uses the Sidekick terminal window for the reader and restores the terminal when you leave:
 
 ```lua
-require("sidekick_reader").setup({
+require("sidekick_reader.integrations.sidekick").setup(opts, {
   layout = "replace",
 })
 ```
 
-The default layout is `replace`.
+The Sidekick integration defaults to `stacked` with an 80/20 split.
 
 ## How it works
 
