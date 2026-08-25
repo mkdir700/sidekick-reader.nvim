@@ -60,7 +60,6 @@ The example below is a complete [lazy.nvim](https://github.com/folke/lazy.nvim) 
         if state.terminal == terminal and state.session then
           local session = state.session.parent or state.session
           return session.tmux_pane_id
-            or (session.pane_id and session:pane_id())
         end
       end
     end
