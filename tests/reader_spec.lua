@@ -122,4 +122,25 @@ assert(not terminal.focused, "restoring the Sidekick terminal should not reopen 
 reader:focus("%7", 0, terminal)
 assert(vim.api.nvim_win_get_buf(0) == rendered, "focusing the reader again should restore it")
 
+observer_opts.on_event("item/started", {
+	item = {
+		type = "fileChange",
+		id = "deleted-file",
+		status = "completed",
+		changes = {
+			{
+				path = "/tmp/deleted.rs",
+				kind = { type = "delete" },
+				diff = "(E::SponsorDeclined, R::SponsorDeclined),\n(E::SponsorTimedOut, R::SponsorTimedOut),",
+			},
+		},
+	},
+})
+local deleted_text = table.concat(vim.api.nvim_buf_get_lines(rendered, 0, -1, false), "\n")
+assert(deleted_text:find("delete  /tmp/deleted.rs", 1, true), "a deleted file should be labelled")
+assert(
+	deleted_text:find("-(E::SponsorDeclined, R::SponsorDeclined),", 1, true),
+	"deleted file content should be marked as deleted"
+)
+
 print("reader_spec: ok")

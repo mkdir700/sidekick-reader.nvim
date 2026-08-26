@@ -13,10 +13,18 @@ local function content(message)
 	if message.kind == "file_change" then
 		local lines = {}
 		for index, change in ipairs(message.changes or {}) do
-			lines[#lines + 1] = text(change.path)
+			local kind = text(change.kind)
+			lines[#lines + 1] = kind ~= "" and (kind .. "  " .. text(change.path)) or text(change.path)
 			local diff = text(change.diff)
 			if diff ~= "" then
-				vim.list_extend(lines, vim.split(diff, "\n", { plain = true }))
+				local diff_lines = vim.split(diff, "\n", { plain = true })
+				if kind == "add" or kind == "delete" then
+					local prefix = kind == "add" and "+" or "-"
+					for line_index, line in ipairs(diff_lines) do
+						diff_lines[line_index] = prefix .. line
+					end
+				end
+				vim.list_extend(lines, diff_lines)
 			end
 			if index < #(message.changes or {}) then
 				lines[#lines + 1] = ""

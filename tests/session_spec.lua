@@ -66,6 +66,23 @@ assert(messages[4].changes[1].path == "/tmp/example.rs")
 assert(messages[4].changes[1].diff:find("+after", 1, true) and messages[4].status == "completed")
 assert(changes >= 7, "live event updates should notify the view")
 
+local deleted = Session.new()
+deleted:handle("item/started", {
+	item = {
+		type = "fileChange",
+		id = "deleted-file",
+		status = "completed",
+		changes = {
+			{
+				path = "/tmp/deleted.rs",
+				kind = { type = "delete" },
+				diff = "fn removed() {}",
+			},
+		},
+	},
+})
+assert(deleted:messages()[1].changes[1].kind == "delete", "Codex delete changes should retain their kind")
+
 local replay = Session.new()
 replay:load({
 	turns = {

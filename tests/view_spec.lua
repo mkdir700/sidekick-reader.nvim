@@ -110,6 +110,32 @@ assert(diff_text:find("/tmp/example.rs", 1, true), "file changes should show the
 assert(diff_text:find("-before", 1, true) and diff_text:find("+after", 1, true), "file changes should show the diff")
 assert(vim.fn.foldclosed(2) == -1, "file diffs should remain expanded")
 
+local deleted_text = table.concat({
+	"(E::SponsorDeclined, R::SponsorDeclined),",
+	"(E::SponsorTimedOut, R::SponsorTimedOut),",
+	'(E::SponsorInternal("boom".into()), R::SponsorInternal),',
+}, "\n")
+view.render(reopened.buf, {
+	{
+		role = "tool",
+		kind = "file_change",
+		status = "completed",
+		changes = {
+			{ path = "/tmp/deleted.rs", kind = "delete", diff = deleted_text },
+		},
+	},
+})
+local deleted_lines = vim.api.nvim_buf_get_lines(reopened.buf, 0, -1, false)
+assert_equal("-(E::SponsorDeclined, R::SponsorDeclined),", deleted_lines[3], "deleted content should be explicit")
+assert_equal("-(E::SponsorTimedOut, R::SponsorTimedOut),", deleted_lines[4], "every deleted line should be explicit")
+local delete_highlights = 0
+for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(reopened.buf, -1, 0, -1, { details = true })) do
+	if mark[4].line_hl_group == "DiffDelete" then
+		delete_highlights = delete_highlights + 1
+	end
+end
+assert_equal(3, delete_highlights, "all deleted lines should use the delete highlight")
+
 local live_messages = {
 	{ role = "assistant", text = "working" },
 	{ role = "tool", kind = "command", command = "cargo test", output = "running\n", status = "inProgress" },

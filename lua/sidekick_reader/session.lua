@@ -18,9 +18,10 @@ end
 local function file_changes(changes)
 	local result = {}
 	for _, change in ipairs(type(changes) == "table" and changes or {}) do
+		local kind = type(change.kind) == "table" and change.kind.type or change.kind
 		result[#result + 1] = {
 			path = text(change.path),
-			kind = text(change.kind),
+			kind = text(kind),
 			diff = text(change.diff),
 		}
 	end
