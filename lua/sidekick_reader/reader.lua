@@ -286,7 +286,14 @@ function Reader:toggle(pane_id, win)
 		vim.api.nvim_create_autocmd("CursorMoved", {
 			buffer = buf,
 			callback = function()
-				local cursor = vim.api.nvim_win_get_cursor(0)[1]
+				local reader_win = state.win
+				if not reader_win or not vim.api.nvim_win_is_valid(reader_win) then
+					return
+				end
+				if vim.api.nvim_win_get_buf(reader_win) ~= buf then
+					return
+				end
+				local cursor = vim.api.nvim_win_get_cursor(reader_win)[1]
 				if state.suppress_follow_once then
 					state.suppress_follow_once = nil
 				elseif cursor >= vim.api.nvim_buf_line_count(buf) then
@@ -300,7 +307,7 @@ function Reader:toggle(pane_id, win)
 					)
 				elseif state.follow and cursor < View.latest_start(buf) then
 					state.follow = false
-					state.saved_view = vim.fn.winsaveview()
+					state.saved_view = vim.api.nvim_win_call(reader_win, vim.fn.winsaveview)
 				end
 			end,
 		})

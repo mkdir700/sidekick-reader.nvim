@@ -4,6 +4,7 @@ local terminal_buf = vim.api.nvim_create_buf(false, true)
 local terminal_win = vim.api.nvim_get_current_win()
 vim.api.nvim_win_set_buf(terminal_win, terminal_buf)
 local initial_windows = #vim.api.nvim_list_wins()
+local observer_opts
 
 local reader = Reader.new({
 	layout = "stacked",
@@ -14,7 +15,8 @@ local reader = Reader.new({
 		end,
 	},
 	registry_dir = "/tmp/sidekick_reader-test",
-	observer_factory = function()
+	observer_factory = function(opts)
+		observer_opts = opts
 		return {
 			start = function() end,
 			stop = function()
@@ -49,6 +51,24 @@ local viewer_height = vim.api.nvim_win_get_height(viewer_win)
 local terminal_height = vim.api.nvim_win_get_height(terminal_win)
 assert(viewer_height > terminal_height * 3, "the viewer should use roughly 80% of the available height")
 
+local state = reader.states["%8"]
+observer_opts.on_event("item/started", {
+	item = { type = "userMessage", id = "before-clear", content = { { type = "text", text = "Before clear" } } },
+})
+observer_opts.on_event("item/started", {
+	item = { type = "agentMessage", id = "clear-reply", text = "Visible reply", phase = "final_answer" },
+})
+vim.api.nvim_set_current_win(terminal_win)
+vim.api.nvim_exec_autocmds("CursorMoved", { buffer = state.buf })
+assert(state.follow, "clearing the focused terminal must not stop the reader from following output")
+observer_opts.on_event("item/started", {
+	item = { type = "agentMessage", id = "after-clear", text = "After clear", phase = "final_answer" },
+})
+assert(
+	vim.api.nvim_win_get_cursor(state.win)[1] == vim.api.nvim_buf_line_count(state.buf),
+	"messages after clearing the terminal should remain visible"
+)
+
 reader:hide("%8")
 assert(#vim.api.nvim_list_wins() == initial_windows, "hiding Sidekick should hide the viewer too")
 assert(vim.api.nvim_win_is_valid(terminal_win), "the Sidekick terminal window must remain valid")
@@ -62,7 +82,7 @@ local reopened_ok, reopened_err = pcall(reader.show, reader, "%8", reopened_term
 assert(reopened_ok, "reopening from a new Sidekick window must not reuse the closed window: " .. tostring(reopened_err))
 assert(#vim.api.nvim_list_wins() == initial_windows + 1, "showing Sidekick should restore the viewer")
 
-local state = reader.states["%8"]
+state = reader.states["%8"]
 vim.api.nvim_set_current_win(state.win)
 assert(vim.fn.maparg("gf", "n") ~= "", "the reader should provide a file-open key")
 vim.bo[state.buf].modifiable = true
