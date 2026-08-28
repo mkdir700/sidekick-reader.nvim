@@ -15,6 +15,10 @@ local function message_text(content)
 	return table.concat(parts, "\n")
 end
 
+local function command_output(message)
+	return text(message.output) .. table.concat(message.output_chunks or {})
+end
+
 local function file_changes(changes)
 	local result = {}
 	for _, change in ipairs(type(changes) == "table" and changes or {}) do
@@ -40,7 +44,15 @@ function Session.new(opts)
 end
 
 function Session:messages()
-	return vim.deepcopy(self.values)
+	local values = vim.deepcopy(self.values)
+	for _, message in ipairs(values) do
+		if message.kind == "command" and message.output_chunks then
+			message.output = command_output(message)
+			message.output_chunks = nil
+			message.output_ends_with_newline = nil
+		end
+	end
+	return values
 end
 
 function Session:load(thread)
@@ -113,13 +125,16 @@ function Session:handle(method, params)
 			})
 			change = { type = added and "append" or "update", index = index }
 		elseif item.type == "commandExecution" then
+			local output = text(item.aggregatedOutput)
 			local _, index, added = self:_insert(item.id, {
 				id = item.id,
 				role = "tool",
 				kind = "command",
 				command = text(item.command),
 				cwd = item.cwd,
-				output = text(item.aggregatedOutput),
+				output = output,
+				output_chunks = {},
+				output_ends_with_newline = output:sub(-1) == "\n",
 				status = item.status,
 				turn_id = turn_id,
 			})
@@ -144,8 +159,21 @@ function Session:handle(method, params)
 	elseif method == "item/commandExecution/outputDelta" then
 		local index = self.by_id[params.itemId]
 		if index then
-			self.values[index].output = self.values[index].output .. text(params.delta)
-			change = { type = "update", index = index }
+			local message = self.values[index]
+			local delta = text(params.delta)
+			local output_was_empty = message.output == "" and #(message.output_chunks or {}) == 0
+			message.output_chunks[#message.output_chunks + 1] = delta
+			local append_new_line = output_was_empty or message.output_ends_with_newline
+			if delta ~= "" then
+				message.output_ends_with_newline = delta:sub(-1) == "\n"
+			end
+			change = {
+				type = "update",
+				index = index,
+				delta = delta,
+				append_new_line = append_new_line,
+				output_was_empty = output_was_empty,
+			}
 		end
 	elseif method == "item/fileChange/patchUpdated" then
 		local index = self.by_id[params.itemId]
@@ -162,7 +190,11 @@ function Session:handle(method, params)
 			message.duration_ms = item.durationMs
 			if type(item.aggregatedOutput) == "string" then
 				message.output = item.aggregatedOutput
+			else
+				message.output = command_output(message)
 			end
+			message.output_chunks = nil
+			message.output_ends_with_newline = nil
 			change = { type = "update", index = index }
 		elseif index and item.type == "agentMessage" and type(item.text) == "string" then
 			self.values[index].text = item.text

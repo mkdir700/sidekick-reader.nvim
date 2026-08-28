@@ -1,10 +1,12 @@
 local Session = require("sidekick_reader.session")
 
 local changes = 0
+local last_change
 local status
 local session = Session.new({
-	on_change = function()
+	on_change = function(_, change)
 		changes = changes + 1
+		last_change = change
 	end,
 	on_status = function(value)
 		status = value
@@ -26,6 +28,12 @@ session:handle("item/started", {
 	item = { type = "commandExecution", id = "cmd-1", command = "pwd", cwd = "/tmp", status = "inProgress" },
 })
 session:handle("item/commandExecution/outputDelta", { itemId = "cmd-1", delta = "/tmp\n" })
+assert(last_change.delta == "/tmp\n" and last_change.append_new_line, "command deltas should remain incremental")
+assert(session.values[3].output == "", "streaming output must not copy the full accumulated string per delta")
+assert(
+	vim.deep_equal({ "/tmp\n" }, session.values[3].output_chunks),
+	"streaming output should retain only received chunks"
+)
 session:handle("item/completed", {
 	item = { type = "commandExecution", id = "cmd-1", command = "pwd", status = "completed", exitCode = 0 },
 })

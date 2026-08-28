@@ -144,9 +144,47 @@ view.render(reopened.buf, { live_messages[1] })
 view.update(reopened.buf, live_messages, { type = "append", index = 2 })
 assert(vim.fn.foldclosed(4) == 4, "a live command should be folded when it is appended")
 live_messages[2].output = "running\ndone\n"
+local writes = {}
+local set_lines = vim.api.nvim_buf_set_lines
+vim.api.nvim_buf_set_lines = function(buf, first, last, strict, replacement)
+	if buf == reopened.buf then
+		writes[#writes + 1] = { first = first, last = last, replacement = replacement }
+	end
+	return set_lines(buf, first, last, strict, replacement)
+end
+local incremental_ok, incremental_err = pcall(view.update, reopened.buf, live_messages, {
+	type = "update",
+	index = 2,
+	delta = "done\n",
+	append_new_line = true,
+})
+vim.api.nvim_buf_set_lines = set_lines
+assert(incremental_ok, incremental_err)
+assert_equal(1, #writes, "one output delta should require one buffer write")
+assert_equal(writes[1].first, writes[1].last, "output deltas should append instead of replacing prior output")
+assert_equal({ "done" }, writes[1].replacement, "only the new output suffix should be written")
+assert(vim.fn.foldclosed(4) == 4, "a live command should remain folded as output arrives")
 live_messages[2].status = "completed"
 view.update(reopened.buf, live_messages, { type = "update", index = 2 })
-assert(vim.fn.foldclosed(4) == 4, "a live command should remain folded as output arrives")
+assert(vim.fn.foldclosed(4) == 4, "a completed live command should remain folded")
+
+local initially_empty_command = {
+	role = "tool",
+	kind = "command",
+	command = "cargo check",
+	output = "",
+	status = "inProgress",
+}
+view.render(reopened.buf, { initially_empty_command })
+initially_empty_command.output = "first line\n"
+view.update(reopened.buf, { initially_empty_command }, {
+	type = "update",
+	index = 1,
+	delta = "first line\n",
+	append_new_line = true,
+	output_was_empty = true,
+})
+assert(vim.fn.foldclosed(2) == 2, "the first streamed output should create the command fold")
 
 local live_diff = {
 	role = "tool",
@@ -198,5 +236,6 @@ local nullable_ok = pcall(view.render, reopened.buf, {
 	{ role = "assistant", text = vim.NIL },
 })
 assert(nullable_ok, "nullable Codex text fields must not crash the renderer")
+assert_equal(-1, vim.bo[reopened.buf].undolevels, "generated conversation updates must not retain undo history")
 
 print("view_spec: ok")

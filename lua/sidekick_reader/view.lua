@@ -9,6 +9,10 @@ local function text(value)
 	return type(value) == "string" and value or ""
 end
 
+local function command_output(message)
+	return text(message.output) .. table.concat(message.output_chunks or {})
+end
+
 local function content(message)
 	if message.kind == "file_change" then
 		local lines = {}
@@ -34,13 +38,42 @@ local function content(message)
 	end
 	if message.role == "tool" then
 		local lines = vim.split(text(message.command), "\n", { plain = true })
-		local output = text(message.output)
+		local output = command_output(message)
 		if output ~= "" then
 			vim.list_extend(lines, vim.split(output, "\n", { plain = true, trimempty = true }))
 		end
 		return lines
 	end
 	return vim.split(text(message.text), "\n", { plain = true })
+end
+
+local function append_command_output(buf, item, change)
+	local delta = text(change.delta)
+	local lines = vim.split(delta, "\n", { plain = true })
+	if delta:sub(-1) == "\n" then
+		table.remove(lines)
+	end
+	if change.output_was_empty then
+		while lines[1] == "" do
+			table.remove(lines, 1)
+		end
+	end
+	if #lines == 0 then
+		return false
+	end
+
+	vim.bo[buf].modifiable = true
+	if change.append_new_line then
+		vim.api.nvim_buf_set_lines(buf, item.finish, item.finish, false, lines)
+		item.finish = item.finish + #lines
+	else
+		local previous = vim.api.nvim_buf_get_lines(buf, item.finish - 1, item.finish, false)[1] or ""
+		lines[1] = previous .. lines[1]
+		vim.api.nvim_buf_set_lines(buf, item.finish - 1, item.finish, false, lines)
+		item.finish = item.finish - 1 + #lines
+	end
+	vim.bo[buf].modifiable = false
+	return true
 end
 
 local function tool_label(message)
@@ -143,9 +176,23 @@ local function apply_folds(buf)
 	end
 end
 
+local function refresh_command_fold(buf, item)
+	if item.finish <= item.line then
+		return
+	end
+	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+		vim.api.nvim_win_call(win, function()
+			vim.cmd(("silent! %d,%dfolddelete"):format(item.line, item.finish))
+			vim.cmd(("silent! %d,%dfold"):format(item.line, item.finish))
+			vim.cmd(("silent! %dfoldclose"):format(item.line))
+		end)
+	end
+end
+
 function M.attach(buf, win)
 	highlights()
 	vim.b[buf].sidekick_reader_view = true
+	vim.bo[buf].undolevels = -1
 	vim.wo[win].wrap = true
 	vim.wo[win].linebreak = true
 	vim.wo[win].breakindent = true
@@ -217,11 +264,11 @@ function M.update(buf, messages, change)
 	if not message then
 		return
 	end
-	local lines = content(message)
 	local wins = vim.fn.win_findbuf(buf)
 	local width = #wins > 0 and vim.api.nvim_win_get_width(wins[1]) or 60
 
 	if change.type == "append" and change.index == layout.count + 1 then
+		local lines = content(message)
 		local old_count = vim.api.nvim_buf_line_count(buf)
 		local appended = { "" }
 		vim.list_extend(appended, lines)
@@ -254,6 +301,13 @@ function M.update(buf, messages, change)
 
 	if change.type == "update" and change.index == layout.count then
 		local item = layout.ranges[change.index]
+		if message.kind == "command" and type(change.delta) == "string" then
+			if append_command_output(buf, item, change) then
+				refresh_command_fold(buf, item)
+			end
+			return
+		end
+		local lines = content(message)
 		vim.bo[buf].modifiable = true
 		vim.api.nvim_buf_set_lines(buf, item.line - 1, item.finish, false, lines)
 		vim.bo[buf].modifiable = false
